@@ -1,9 +1,37 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import Editor from "@monaco-editor/react";
 import ReactMarkdown from "react-markdown";
 import toast, { Toaster } from "react-hot-toast";
 import { reviewCode, runCode, chatWithAI } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
+// ─── Guest usage helpers (localStorage, resets every 24h) ────────────────────
+const GUEST_LIMIT = 3;
+const GUEST_KEY_REVIEW = "cr_guest_reviews";
+const GUEST_KEY_RUN = "cr_guest_runs";
+const GUEST_KEY_DATE = "cr_guest_date";
+
+const getTodayStr = () => new Date().toDateString();
+
+const getGuestCount = (key) => {
+  const today = getTodayStr();
+  if (localStorage.getItem(GUEST_KEY_DATE) !== today) {
+    // New day → reset
+    localStorage.setItem(GUEST_KEY_DATE, today);
+    localStorage.setItem(GUEST_KEY_REVIEW, "0");
+    localStorage.setItem(GUEST_KEY_RUN, "0");
+  }
+  return parseInt(localStorage.getItem(key) || "0", 10);
+};
+
+const incrementGuestCount = (key) => {
+  const val = getGuestCount(key);
+  localStorage.setItem(key, String(val + 1));
+  return val + 1;
+};
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const spinnerStyle = `
 @keyframes spin {
   0% { transform: rotate(0deg); }
@@ -42,6 +70,119 @@ const spinnerStyle = `
   font-size: 11px;
   font-family: monospace;
 }
+.markdown-body pre {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 10px 0;
+}
+.markdown-body code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 12.5px;
+}
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+}
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body p:first-child { margin-top: 0; }
+.markdown-body ul, .markdown-body ol { padding-left: 20px; }
+
+@keyframes bannerSlide {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.guest-banner { animation: bannerSlide 0.4s ease forwards; }
+.interview-bar { animation: bannerSlide 0.4s ease forwards; }
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.92) translateY(16px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.limit-modal { animation: modalIn 0.3s ease forwards; }
+
+@keyframes lockPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.lock-pulse { animation: lockPulse 2s ease-in-out infinite; }
+
+/* Premium Toolbar Styles */
+.pro-toolbar {
+  background: rgba(20, 25, 35, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+.pro-btn {
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pro-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.pro-btn:active {
+  transform: translateY(1px);
+}
+.pro-select {
+  background: rgba(0, 0, 0, 0.2);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="none" height="20" stroke="%23e2e8f0" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><polyline points="6 9 12 15 18 9"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 32px;
+}
+.pro-select:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.pro-primary-btn {
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+}
+.pro-primary-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+.pro-primary-btn:active {
+  transform: translateY(0);
+}
 `;
 
 const QUICK_PROMPTS = [
@@ -56,7 +197,53 @@ const TIMER_OPTIONS = [
   { label: "90 min", seconds: 5400 },
 ];
 
+// ─── Interview Modes ─────────────────────────────────────────────────────────
+const INTERVIEW_MODES = [
+  {
+    id: "low",
+    label: "Low",
+    emoji: "🟢",
+    title: "Practice",
+    desc: "AI Review ✅  ·  AI Chat ✅",
+    longDesc: "Full AI assistance — perfect for learning and practice sessions.",
+    color: "#22c55e",
+    border: "rgba(34,197,94,0.35)",
+    bg: "rgba(34,197,94,0.08)",
+    blockReview: false,
+    blockChat: false,
+  },
+  {
+    id: "med",
+    label: "Med",
+    emoji: "🟡",
+    title: "Challenge",
+    desc: "AI Review ✅  ·  AI Chat ❌",
+    longDesc: "Review allowed but chat is off — simulate assisted interview prep.",
+    color: "#f59e0b",
+    border: "rgba(245,158,11,0.35)",
+    bg: "rgba(245,158,11,0.08)",
+    blockReview: false,
+    blockChat: true,
+  },
+  {
+    id: "strict",
+    label: "Strict",
+    emoji: "🔴",
+    title: "Real Interview",
+    desc: "AI Review ❌  ·  AI Chat ❌",
+    longDesc: "No AI assistance at all — exactly like a real coding interview.",
+    color: "#ef4444",
+    border: "rgba(239,68,68,0.35)",
+    bg: "rgba(239,68,68,0.08)",
+    blockReview: true,
+    blockChat: true,
+  },
+];
+
 function CodeEditor() {
+  const navigate = useNavigate();
+  const { user, isAuthenticated, logout } = useAuth();
+
   const [language, setLanguage] = useState("cpp");
   const [code, setCode] = useState(`#include<iostream>
 using namespace std;
@@ -73,6 +260,40 @@ int main() {
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [stats, setStats] = useState(null);
+
+  // Pro DX features
+  const [editorTheme, setEditorTheme] = useState("vs-dark");
+  const [fontSize, setFontSize] = useState(14);
+  const [showSettings, setShowSettings] = useState(false);
+  const editorRef = useRef(null);
+
+  const TEMPLATES = {
+    javascript: `// React / Node.js Template\nconsole.log("Hello, World!");\n\nfunction calculate(a, b) {\n  return a + b;\n}\n\nconsole.log("Result:", calculate(10, 20));`,
+    python: `# Python Script Template\ndef main():\n    print("Hello from Python")\n    a, b = 10, 20\n    print(f"Result: {a + b}")\n\nif __name__ == "__main__":\n    main()`,
+    java: `// Java Main Class Template\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n        int a = 10, b = 20;\n        System.out.println("Result: " + (a + b));\n    }\n}`,
+    cpp: `// C++ Main Template\n#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello from C++" << endl;\n    int a = 10, b = 20;\n    cout << "Result: " << (a + b) << endl;\n    return 0;\n}`
+  };
+
+  const handleTemplate = (e) => {
+    const lang = e.target.value;
+    if (!lang) return;
+    setLanguage(lang);
+    setCode(TEMPLATES[lang] || "");
+    toast.success(`${lang} boilerplate loaded!`);
+  };
+
+  const handleFormat = () => {
+    if (editorRef.current) {
+      editorRef.current.getAction('editor.action.formatDocument').run();
+      toast.success("✨ Code formatted");
+    }
+  };
+
+  // Guest usage
+  const [guestReviews, setGuestReviews] = useState(0);
+  const [guestRuns, setGuestRuns] = useState(0);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitType, setLimitType] = useState("review");
 
   // Chat
   const [chatOpen, setChatOpen] = useState(false);
@@ -97,14 +318,36 @@ int main() {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerLeft, setTimerLeft] = useState(1800);
   const [showTimerSetup, setShowTimerSetup] = useState(false);
+  const [interviewMode, setInterviewMode] = useState("low"); // "low" | "med" | "strict"
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const timerRef = useRef(null);
+
+  // Derived interview mode config
+  const activeModeConfig = INTERVIEW_MODES.find((m) => m.id === interviewMode);
+
+  // Cancel timer fully
+  const cancelTimer = () => {
+    setTimerMode(false);
+    setTimerRunning(false);
+    clearInterval(timerRef.current);
+    setShowCancelConfirm(false);
+    toast("⏹ Interview cancelled.", { icon: "🛑", duration: 3000 });
+  };
 
   // Shortcuts modal
   const [showShortcuts, setShowShortcuts] = useState(false);
 
+  // Load guest usage on mount
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setGuestReviews(getGuestCount(GUEST_KEY_REVIEW));
+      setGuestRuns(getGuestCount(GUEST_KEY_RUN));
+    }
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, chatOpen]);
+  }, [chatMessages, chatOpen, chatLoading]);
 
   // Timer countdown
   useEffect(() => {
@@ -133,7 +376,7 @@ int main() {
     if (e.key === "?" && !e.ctrlKey && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
       setShowShortcuts((s) => !s);
     }
-    if (e.key === "Escape") { setShowShortcuts(false); setShowTimerSetup(false); }
+    if (e.key === "Escape") { setShowShortcuts(false); setShowTimerSetup(false); setShowLimitModal(false); }
   }, []);
 
   useEffect(() => {
@@ -214,7 +457,21 @@ console.log(a + b);`,
     setOutput("");
   };
 
+  // ─── Guest limit gate ────────────────────────────────────────────────────────
+  const checkGuestLimit = (type) => {
+    if (isAuthenticated) return true; // logged in → no limit
+    const key = type === "review" ? GUEST_KEY_REVIEW : GUEST_KEY_RUN;
+    const count = getGuestCount(key);
+    if (count >= GUEST_LIMIT) {
+      setLimitType(type);
+      setShowLimitModal(true);
+      return false;
+    }
+    return true;
+  };
+
   const handleRun = async () => {
+    if (!checkGuestLimit("run")) return;
     try {
       setLoading(true);
       setStats(null);
@@ -227,6 +484,10 @@ console.log(a + b);`,
         status: data.status?.description || "Unknown",
       });
       toast.success("Code Executed Successfully");
+      if (!isAuthenticated) {
+        const newCount = incrementGuestCount(GUEST_KEY_RUN);
+        setGuestRuns(newCount);
+      }
     } catch (err) {
       console.error(err);
       toast.error("Execution Failed");
@@ -236,11 +497,21 @@ console.log(a + b);`,
   };
 
   const handleReview = async () => {
+    // Block in Strict interview mode
+    if (timerMode && timerRunning && activeModeConfig.blockReview) {
+      toast.error(`🔴 AI Review is disabled in ${activeModeConfig.title} mode. You've got this!`, { duration: 3000 });
+      return;
+    }
+    if (!checkGuestLimit("review")) return;
     try {
       setLoading(true);
       const data = await reviewCode(code, language);
       setReview(data.review);
       toast.success("AI Review Generated");
+      if (!isAuthenticated) {
+        const newCount = incrementGuestCount(GUEST_KEY_REVIEW);
+        setGuestReviews(newCount);
+      }
     } catch (err) {
       console.error(err);
       toast.error("Review Failed");
@@ -333,9 +604,52 @@ console.log(a + b);`,
   };
 
   return (
-    <div style={{ background: t.bg, minHeight: "100vh", color: t.text, padding: "30px", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", transition: "background 0.3s, color 0.3s", boxSizing: "border-box" }}>
+    <div style={{ background: t.bg, height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", color: t.text, padding: "16px 24px", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", transition: "background 0.3s, color 0.3s", boxSizing: "border-box" }}>
       <style>{spinnerStyle}</style>
       <Toaster />
+
+      {/* ── Guest Limit Modal ──────────────────────────────────────────────────── */}
+      {showLimitModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
+          onClick={() => setShowLimitModal(false)}
+        >
+          <div
+            className="limit-modal"
+            style={{ background: "#0f172a", border: "1px solid rgba(99,102,241,0.4)", borderRadius: "20px", padding: "36px 32px", maxWidth: "420px", width: "100%", boxShadow: "0 32px 80px rgba(0,0,0,0.6)", textAlign: "center" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: "44px", marginBottom: "16px" }}>🔒</div>
+            <h2 style={{ fontSize: "20px", fontWeight: "800", marginBottom: "12px", color: "#f1f5f9" }}>
+              Daily Limit Reached
+            </h2>
+            <p style={{ color: "#94a3b8", fontSize: "14px", lineHeight: "1.7", marginBottom: "28px" }}>
+              You have used all <strong style={{ color: "#f1f5f9" }}>3 free {limitType}s</strong> for today.<br />
+              Login to get <strong style={{ color: "#22d3ee" }}>unlimited</strong> access — it&apos;s free!
+            </p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button
+                onClick={() => navigate("/login")}
+                style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "white", border: "none", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+              >
+                🔑 Login
+              </button>
+              <button
+                onClick={() => navigate("/signup")}
+                style={{ background: "transparent", color: "#22d3ee", border: "1px solid rgba(34,211,238,0.4)", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+              >
+                🚀 Sign Up Free
+              </button>
+            </div>
+            <button
+              onClick={() => setShowLimitModal(false)}
+              style={{ marginTop: "16px", background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Shortcuts Modal */}
       {showShortcuts && (
@@ -361,103 +675,409 @@ console.log(a + b);`,
         </div>
       )}
 
-      {/* Timer Setup Modal */}
+      {/* ── Interview Timer Setup Modal ─────────────────────────────────────── */}
       {showTimerSetup && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setShowTimerSetup(false)}>
-          <div style={{ background: t.modalBg, border: `1px solid ${t.border}`, borderRadius: "16px", padding: "28px", minWidth: "320px", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ margin: "0 0 20px", fontSize: "18px" }}>⏱ Interview Timer</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-              {TIMER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.seconds}
-                  onClick={() => { setTimerSeconds(opt.seconds); setTimerLeft(opt.seconds); }}
-                  style={{ background: timerSeconds === opt.seconds ? "#4f46e5" : t.card, color: timerSeconds === opt.seconds ? "white" : t.text, border: `1px solid ${timerSeconds === opt.seconds ? "#4f46e5" : t.border}`, borderRadius: "10px", padding: "12px", cursor: "pointer", fontWeight: "600", fontSize: "15px" }}
-                >
-                  {opt.label}
-                </button>
-              ))}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }} onClick={() => setShowTimerSetup(false)}>
+          <div style={{ background: t.modalBg, border: `1px solid ${t.border}`, borderRadius: "20px", padding: "32px", width: "100%", maxWidth: "480px", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }} onClick={(e) => e.stopPropagation()}>
+
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
+              <div style={{ fontSize: "24px" }}>⏱</div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "800" }}>Interview Timer</h2>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: t.muted }}>Set duration and AI assistance level</p>
+              </div>
             </div>
+
+            {/* Mode selector */}
+            <div style={{ marginBottom: "22px" }}>
+              <div style={{ fontSize: "11px", color: t.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>Interview Mode</div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                {INTERVIEW_MODES.map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => setInterviewMode(mode.id)}
+                    style={{
+                      flex: 1, padding: "14px 10px", borderRadius: "12px", cursor: "pointer",
+                      border: `2px solid ${interviewMode === mode.id ? mode.color : t.border}`,
+                      background: interviewMode === mode.id ? mode.bg : t.card,
+                      transition: "all 0.2s",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
+                    }}
+                  >
+                    <span style={{ fontSize: "20px" }}>{mode.emoji}</span>
+                    <span style={{ fontSize: "13px", fontWeight: "800", color: interviewMode === mode.id ? mode.color : t.text }}>{mode.label}</span>
+                    <span style={{ fontSize: "10px", color: t.muted, textAlign: "center", lineHeight: 1.4 }}>{mode.title}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Active mode description */}
+              {(() => {
+                const cfg = INTERVIEW_MODES.find((m) => m.id === interviewMode);
+                return (
+                  <div style={{ marginTop: "12px", padding: "12px 16px", background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: "10px", fontSize: "13px" }}>
+                    <div style={{ color: cfg.color, fontWeight: "700", marginBottom: "4px" }}>{cfg.emoji} {cfg.title} Mode</div>
+                    <div style={{ color: t.muted, lineHeight: 1.5 }}>{cfg.longDesc}</div>
+                    <div style={{ marginTop: "8px", fontSize: "12px", display: "flex", gap: "14px" }}>
+                      <span style={{ color: !cfg.blockReview ? "#22c55e" : "#ef4444" }}>
+                        {!cfg.blockReview ? "✅" : "🚫"} AI Review
+                      </span>
+                      <span style={{ color: !cfg.blockChat ? "#22c55e" : "#ef4444" }}>
+                        {!cfg.blockChat ? "✅" : "🚫"} AI Chat
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Duration picker */}
+            <div style={{ marginBottom: "22px" }}>
+              <div style={{ fontSize: "11px", color: t.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>Duration</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {TIMER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.seconds}
+                    onClick={() => { setTimerSeconds(opt.seconds); setTimerLeft(opt.seconds); }}
+                    style={{ background: timerSeconds === opt.seconds ? "#4f46e5" : t.card, color: timerSeconds === opt.seconds ? "white" : t.text, border: `1px solid ${timerSeconds === opt.seconds ? "#4f46e5" : t.border}`, borderRadius: "10px", padding: "12px", cursor: "pointer", fontWeight: "700", fontSize: "15px", transition: "all 0.2s" }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Start button */}
             <button
-              onClick={() => { setTimerMode(true); setTimerRunning(true); setTimerLeft(timerSeconds); setShowTimerSetup(false); toast.success("⏱ Interview timer started!"); }}
-              style={{ background: "#16a34a", color: "white", border: "none", borderRadius: "10px", padding: "12px", width: "100%", cursor: "pointer", fontWeight: "700", fontSize: "15px" }}
+              onClick={() => {
+                const cfg = INTERVIEW_MODES.find((m) => m.id === interviewMode);
+                if (cfg.blockChat) setChatOpen(false);
+                setTimerMode(true);
+                setTimerRunning(true);
+                setTimerLeft(timerSeconds);
+                setShowTimerSetup(false);
+                toast.success(`${cfg.emoji} ${cfg.title} Interview started! ${cfg.blockReview && cfg.blockChat ? "AI fully disabled." : cfg.blockChat ? "Chat disabled." : "Good luck!"}`);
+              }}
+              style={{ background: `linear-gradient(135deg, ${activeModeConfig.color}, ${activeModeConfig.color}cc)`, color: "white", border: "none", borderRadius: "12px", padding: "14px", width: "100%", cursor: "pointer", fontWeight: "800", fontSize: "15px", fontFamily: "inherit", boxShadow: `0 4px 20px ${activeModeConfig.color}44` }}
             >
-              ▶ Start Timer
+              ▶ Start {activeModeConfig.emoji} {activeModeConfig.title} Interview
             </button>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px", flexWrap: "wrap", gap: "14px" }}>
-        <div>
-          <h1 style={{ fontSize: "40px", fontWeight: "800", margin: 0, letterSpacing: "-1px", background: "linear-gradient(135deg,#6366f1,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            CodeReview AI
-          </h1>
-          <p style={{ color: t.muted, margin: "6px 0 0", fontSize: "15px" }}>
-            AI-powered code review &amp; execution platform
-          </p>
+      {/* ── Guest Banner ───────────────────────────────────────────────────────── */}
+      {!isAuthenticated && (
+        <div
+          className="guest-banner"
+          style={{ marginBottom: "12px", background: "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(34,211,238,0.08))", border: "1px solid rgba(99,102,241,0.3)", borderRadius: "12px", padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}
+        >
+          <span style={{ fontSize: "13px", color: "#a5b4fc", display: "flex", alignItems: "center", gap: "8px" }}>
+            🔒 <strong>Guest Mode</strong> — {GUEST_LIMIT - guestReviews} review{GUEST_LIMIT - guestReviews !== 1 ? "s" : ""} &amp; {GUEST_LIMIT - guestRuns} run{GUEST_LIMIT - guestRuns !== 1 ? "s" : ""} left today
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={() => navigate("/login")}
+              style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "white", border: "none", borderRadius: "8px", padding: "6px 16px", cursor: "pointer", fontSize: "12px", fontWeight: "700", fontFamily: "inherit" }}
+            >
+              Login for unlimited access
+            </button>
+            <button
+              onClick={() => navigate("/signup")}
+              style={{ background: "transparent", color: "#22d3ee", border: "1px solid rgba(34,211,238,0.35)", borderRadius: "8px", padding: "6px 14px", cursor: "pointer", fontSize: "12px", fontWeight: "600", fontFamily: "inherit" }}
+            >
+              Sign Up Free
+            </button>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+      )}
 
-          {/* Timer display */}
+      {/* ── Cancel Confirmation Modal ──────────────────────────────────────── */}
+      {showCancelConfirm && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+          onClick={() => setShowCancelConfirm(false)}
+        >
+          <div
+            className="limit-modal"
+            style={{ background: t.modalBg, border: `1px solid ${activeModeConfig.border}`, borderRadius: "20px", padding: "36px 32px", maxWidth: "400px", width: "100%", boxShadow: "0 32px 80px rgba(0,0,0,0.7)", textAlign: "center" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: "44px", marginBottom: "12px" }}>🛑</div>
+            <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#f1f5f9", marginBottom: "10px" }}>Cancel Interview?</h2>
+            <p style={{ color: t.muted, fontSize: "13px", lineHeight: "1.7", marginBottom: "8px" }}>
+              You are in <strong style={{ color: activeModeConfig.color }}>{activeModeConfig.emoji} {activeModeConfig.title} mode</strong>
+            </p>
+            <p style={{ color: t.muted, fontSize: "13px", lineHeight: "1.7", marginBottom: "28px" }}>
+              Time elapsed: <strong style={{ color: "#f1f5f9" }}>{formatTimer(timerSeconds - timerLeft)}</strong> of <strong style={{ color: "#f1f5f9" }}>{formatTimer(timerSeconds)}</strong>.
+              <br />Are you sure you want to end this session?
+            </p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button
+                onClick={cancelTimer}
+                style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit", transition: "all 0.2s" }}
+              >
+                🛑 Yes, Cancel Interview
+              </button>
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "white", border: "none", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+              >
+                ▶ Keep Going
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Active Interview Mode Banner ───────────────────────────────────────── */}
+      {timerMode && (() => {
+        const cfg = activeModeConfig;
+        const elapsed = timerSeconds - timerLeft;
+        return (
+          <div
+            className="interview-bar"
+            style={{ marginBottom: "12px", background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: "12px", padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}
+          >
+            {/* Left: mode info + restrictions */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <span className="lock-pulse" style={{ fontSize: "16px" }}>{cfg.emoji}</span>
+              <span style={{ fontSize: "13px", fontWeight: "800", color: cfg.color }}>{cfg.title} Interview</span>
+              <span style={{ fontSize: "12px", color: t.muted }}>|</span>
+              <span style={{ fontSize: "12px", color: timerLeft < 300 ? "#ef4444" : "#f1f5f9", fontWeight: "700", letterSpacing: "0.05em", fontVariantNumeric: "tabular-nums" }}>
+                {timerLeft < 300 ? "⚠️ " : ""}{formatTimer(timerLeft)} left
+              </span>
+              <span style={{ fontSize: "12px", color: t.muted }}>|</span>
+              <span style={{ fontSize: "12px", color: !cfg.blockReview ? "#22c55e" : "#ef4444" }}>
+                {!cfg.blockReview ? "✅" : "🚫"} Review
+              </span>
+              <span style={{ fontSize: "12px", color: !cfg.blockChat ? "#22c55e" : "#ef4444" }}>
+                {!cfg.blockChat ? "✅" : "🚫"} Chat
+              </span>
+            </div>
+
+            {/* Right: controls */}
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {/* Pause / Resume */}
+              <button
+                onClick={() => setTimerRunning((r) => !r)}
+                style={{ background: timerRunning ? "rgba(245,158,11,0.12)" : "rgba(34,197,94,0.12)", color: timerRunning ? "#f59e0b" : "#22c55e", border: `1px solid ${timerRunning ? "rgba(245,158,11,0.35)" : "rgba(34,197,94,0.35)"}`, borderRadius: "8px", padding: "6px 14px", cursor: "pointer", fontSize: "13px", fontWeight: "700", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "5px" }}
+              >
+                {timerRunning ? "⏸ Pause" : "▶ Resume"}
+              </button>
+              {/* Cancel */}
+              <button
+                onClick={() => { setTimerRunning(false); setShowCancelConfirm(true); }}
+                style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "8px", padding: "6px 14px", cursor: "pointer", fontSize: "13px", fontWeight: "700", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "5px" }}
+              >
+                🛑 Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Premium Header Navbar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "16px", borderBottom: `1px solid ${t.border}`, flexWrap: "wrap", gap: "14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={() => navigate("/")}>
+          <div style={{ background: "linear-gradient(135deg,#6366f1,#22d3ee)", width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "900", fontSize: "16px" }}>
+            &lt;/&gt;
+          </div>
+          <div>
+            <h1 style={{ fontSize: "22px", fontWeight: "800", margin: 0, letterSpacing: "-0.5px", background: "linear-gradient(135deg,#6366f1,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              CodeReview AI
+            </h1>
+            <p style={{ color: t.muted, margin: "2px 0 0", fontSize: "12px", fontWeight: "500" }}>
+              Premium Code Execution &amp; Review
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+          {/* Timer chip in navbar */}
           {timerMode && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: timerLeft < 300 ? "rgba(239,68,68,0.15)" : t.card, border: `1px solid ${timerLeft < 300 ? "#ef4444" : t.border}`, borderRadius: "12px", padding: "10px 16px" }}>
-              <span className={timerLeft < 300 ? "timer-warning" : ""} style={{ fontSize: "20px", fontWeight: "800", color: timerLeft < 300 ? "#ef4444" : "#22c55e", letterSpacing: "2px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", background: timerLeft < 300 ? "rgba(239,68,68,0.15)" : activeModeConfig.bg, border: `1px solid ${timerLeft < 300 ? "#ef4444" : activeModeConfig.border}`, borderRadius: "10px", padding: "6px 12px" }}>
+              <span style={{ fontSize: "13px" }}>{activeModeConfig.emoji}</span>
+              <span className={timerLeft < 300 ? "timer-warning" : ""} style={{ fontSize: "15px", fontWeight: "800", color: timerLeft < 300 ? "#ef4444" : activeModeConfig.color, letterSpacing: "1px", fontVariantNumeric: "tabular-nums" }}>
                 {formatTimer(timerLeft)}
               </span>
-              <button onClick={() => setTimerRunning((r) => !r)} style={{ ...smallBtn, padding: "4px 8px", fontSize: "12px" }}>
+              <button onClick={() => setTimerRunning((r) => !r)} style={{ ...smallBtn, padding: "2px 8px", fontSize: "11px", color: timerRunning ? "#f59e0b" : "#22c55e" }}>
                 {timerRunning ? "⏸" : "▶"}
               </button>
-              <button onClick={() => { setTimerMode(false); setTimerRunning(false); clearInterval(timerRef.current); }} style={{ ...smallBtn, padding: "4px 8px", fontSize: "12px" }}>
+              <button
+                onClick={() => { setTimerRunning(false); setShowCancelConfirm(true); }}
+                style={{ ...smallBtn, padding: "2px 8px", fontSize: "11px", color: "#f87171", borderColor: "rgba(239,68,68,0.35)" }}
+                title="Cancel interview"
+              >
                 ✕
               </button>
             </div>
           )}
 
-          <button onClick={() => setShowTimerSetup(true)} style={{ background: t.toggleBg, color: t.text, border: `1px solid ${t.border}`, padding: "10px 16px", borderRadius: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+          <button onClick={() => setShowTimerSetup(true)} style={{ background: t.toggleBg, color: t.text, border: `1px solid ${t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
             ⏱ Timer
           </button>
-          <button onClick={() => setShowShortcuts(true)} style={{ background: t.toggleBg, color: t.text, border: `1px solid ${t.border}`, padding: "10px 16px", borderRadius: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>
-            ⌨️ ?
+          <button onClick={() => setShowShortcuts(true)} style={{ background: t.toggleBg, color: t.text, border: `1px solid ${t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+            ⌨️ Shortcuts
           </button>
-          <button onClick={() => setChatOpen(!chatOpen)} style={{ background: chatOpen ? "#4f46e5" : t.toggleBg, color: chatOpen ? "white" : t.text, border: `1px solid ${chatOpen ? "#4f46e5" : t.border}`, padding: "10px 16px", borderRadius: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px", transition: "all 0.2s" }}>
-            💬 Chat {chatOpen ? "▲" : "▼"}
+          {/* AI Chat button — hidden in Med/Strict interview mode */}
+          {!(timerMode && activeModeConfig.blockChat) && (
+            <button onClick={() => setChatOpen(!chatOpen)} style={{ background: chatOpen ? "#4f46e5" : t.toggleBg, color: chatOpen ? "white" : t.text, border: `1px solid ${chatOpen ? "#4f46e5" : t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px", transition: "all 0.2s" }}>
+              💬 AI Chat {chatOpen ? "▶" : "◀"}
+            </button>
+          )}
+          {timerMode && activeModeConfig.blockChat && (
+            <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "10px", padding: "8px 14px", fontSize: "12px", color: "#f87171", display: "flex", alignItems: "center", gap: "6px", opacity: 0.8 }}>
+              🚫 Chat Locked
+            </div>
+          )}
+          <button onClick={() => setDarkMode(!darkMode)} style={{ background: t.toggleBg, color: t.toggleText, border: `1px solid ${t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>
+            {darkMode ? "☀️ Light" : "🌙 Dark"}
           </button>
-          <button onClick={() => setDarkMode(!darkMode)} style={{ background: t.toggleBg, color: t.toggleText, border: `1px solid ${t.border}`, padding: "10px 16px", borderRadius: "12px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>
-            {darkMode ? "☀️" : "🌙"}
-          </button>
+
+          {/* Auth section */}
+          {isAuthenticated ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ background: "linear-gradient(135deg,#6366f1,#22d3ee)", borderRadius: "50%", width: "34px", height: "34px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "800", fontSize: "14px", flexShrink: 0 }}>
+                {user?.name?.[0]?.toUpperCase() || "U"}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span style={{ fontSize: "12px", fontWeight: "700", color: t.text, lineHeight: 1.2 }}>{user?.name}</span>
+                <span style={{ fontSize: "10px", color: t.muted }}>Unlimited access</span>
+              </div>
+              <button
+                onClick={() => { logout(); navigate("/"); }}
+                style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.25)", padding: "6px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600", fontFamily: "inherit" }}
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate("/login")}
+              style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "white", border: "none", padding: "8px 18px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "700", fontFamily: "inherit" }}
+            >
+              Login
+            </button>
+          )}
         </div>
       </div>
 
       {/* Main layout */}
-      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: "24px", flex: 1, overflow: "hidden" }}>
 
         {/* Left: editor column */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="left-column" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflowY: "auto", paddingRight: "8px" }}>
 
           {/* Controls row */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "14px" }}>
-            <select value={language} onChange={handleLanguageChange} style={{ background: t.selectBg, color: t.text, padding: "11px 16px", borderRadius: "10px", border: `1px solid ${t.border}`, fontSize: "15px", cursor: "pointer" }}>
-              <option value="cpp">C++</option>
-              <option value="python">Python</option>
-              <option value="java">Java</option>
-              <option value="javascript">JavaScript</option>
-            </select>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <button onClick={() => copy(code, "Code")} style={{ ...btn(t.btnCopy) }}>📋 Copy</button>
-              <button onClick={() => setTestMode((m) => !m)} style={{ background: testMode ? "#0e7490" : t.card, color: testMode ? "white" : t.text, border: `1px solid ${testMode ? "#0e7490" : t.border}`, padding: "11px 18px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontWeight: "700", display: "flex", alignItems: "center", gap: "6px" }}>
-                🧪 Tests {testMode ? "▲" : "▼"}
-              </button>
-              <button onClick={handleReview} disabled={loading} style={btn(t.btnReview)}>
-                {loading ? <><span className="spinner" /> Reviewing…</> : "🔍 Review"}
-              </button>
-              <button onClick={handleRun} disabled={loading} style={btn(t.btnRun)}>
-                {loading ? <><span className="spinner" /> Running…</> : "▶ Run"}
-              </button>
+          <div className="pro-toolbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "14px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <select className="pro-select" value={language} onChange={handleLanguageChange}>
+                <option value="cpp">C++</option>
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="javascript">JavaScript</option>
+              </select>
+              
+              <select className="pro-select" onChange={handleTemplate} value="">
+                <option value="" disabled>🚀 Load Template...</option>
+                <option value="javascript">React / Node.js</option>
+                <option value="python">Python Script</option>
+                <option value="java">Java Main Class</option>
+                <option value="cpp">C++ Boilerplate</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center" }}>
+              
+              {/* Secondary Actions Group */}
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <button className="pro-btn" title="Editor Settings" onClick={() => setShowSettings(!showSettings)}>
+                  ⚙️
+                </button>
+                <button className="pro-btn" onClick={handleFormat}>
+                  ✨ Format
+                </button>
+                <button className="pro-btn" onClick={() => copy(code, "Code")}>
+                  📋 Copy
+                </button>
+                <button className="pro-btn" onClick={() => setTestMode((m) => !m)} style={{ background: testMode ? "rgba(99,102,241,0.2)" : "", color: testMode ? "#a5b4fc" : "" }}>
+                  🧪 Tests {testMode ? "▲" : "▼"}
+                </button>
+              </div>
+
+              {/* Guest usage counters */}
+              {!isAuthenticated && (
+                <div style={{ display: "flex", gap: "8px", fontSize: "12px", color: t.muted, padding: "0 8px", borderLeft: `1px solid rgba(255,255,255,0.1)`, borderRight: `1px solid rgba(255,255,255,0.1)` }}>
+                  <span style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc", borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
+                    🔍 {guestReviews}/{GUEST_LIMIT} reviews
+                  </span>
+                  <span style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80", borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
+                    ▶ {guestRuns}/{GUEST_LIMIT} runs
+                  </span>
+                </div>
+              )}
+
+              {/* Settings Dropdown Panel (Absolute positioned) */}
+              {showSettings && (
+                <div style={{ position: "absolute", zIndex: 10, right: "40px", marginTop: "120px", background: "rgba(15, 23, 42, 0.95)", backdropFilter: "blur(16px)", border: `1px solid rgba(255,255,255,0.1)`, borderRadius: "12px", padding: "16px", boxShadow: "0 10px 40px rgba(0,0,0,0.5)", width: "240px" }}>
+                  <h4 style={{ margin: "0 0 12px", fontSize: "13px", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Editor Settings</h4>
+                  
+                  <label style={{ display: "block", fontSize: "13px", marginBottom: "6px", color: "#e2e8f0" }}>Theme</label>
+                  <select className="pro-select" value={editorTheme} onChange={e => setEditorTheme(e.target.value)} style={{ width: "100%", marginBottom: "16px" }}>
+                    <option value="vs-dark">VS Dark</option>
+                    <option value="hc-black">High Contrast</option>
+                    <option value="vs-light">VS Light</option>
+                  </select>
+
+                  <label style={{ display: "block", fontSize: "13px", marginBottom: "6px", color: "#e2e8f0" }}>Font Size: {fontSize}px</label>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button className="pro-btn" onClick={() => setFontSize(f => Math.max(10, f - 1))} style={{ flex: 1, justifyContent: "center" }}>A-</button>
+                    <button className="pro-btn" onClick={() => setFontSize(f => Math.min(24, f + 1))} style={{ flex: 1, justifyContent: "center" }}>A+</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Primary Actions Group */}
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <button
+                  className="pro-primary-btn"
+                  onClick={handleReview}
+                  disabled={loading}
+                  title={timerMode && timerRunning && activeModeConfig.blockReview ? `AI Review locked in ${activeModeConfig.title} mode` : ""}
+                  style={{
+                    background: timerMode && timerRunning && activeModeConfig.blockReview ? "#7f1d1d" : t.btnReview,
+                    color: "white",
+                    border: timerMode && timerRunning && activeModeConfig.blockReview ? "1px solid rgba(239,68,68,0.6)" : "none",
+                    boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+                  }}
+                >
+                  {timerMode && timerRunning && activeModeConfig.blockReview
+                    ? <><span style={{ fontSize: "14px" }}>🔴</span> Locked</>
+                    : loading ? <><span className="spinner" /> Reviewing…</> : "🔍 Review"
+                  }
+                </button>
+                <button className="pro-primary-btn" onClick={handleRun} disabled={loading} style={{ background: t.btnRun, color: "white", boxShadow: "0 4px 14px rgba(34, 197, 94, 0.3)" }}>
+                  {loading ? <><span className="spinner" /> Running…</> : "▶ Run"}
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Custom Input (only when test mode off) */}
+          {/* Monaco Editor */}
+          <div style={{ flex: 1, minHeight: "350px", display: "flex", flexDirection: "column", borderRadius: "14px", overflow: "hidden", border: `1px solid ${t.border}`, opacity: loading ? 0.55 : 1, pointerEvents: loading ? "none" : "auto", transition: "opacity 0.25s", marginBottom: "20px" }}>
+            <Editor
+              height="100%"
+              theme={editorTheme}
+              language={language}
+              value={code}
+              onChange={(v) => setCode(v)}
+              onMount={(editor) => { editorRef.current = editor; }}
+              options={{ fontSize: fontSize, minimap: { enabled: false }, scrollBeyondLastLine: false }}
+            />
+          </div>
+          <div style={{ flexShrink: 0 }}>
           {!testMode && (
             <div style={{ marginBottom: "20px" }}>
               <h3 style={{ margin: "0 0 10px", fontSize: "13px", color: t.muted, fontWeight: "600", letterSpacing: "0.05em", textTransform: "uppercase" }}>
@@ -541,18 +1161,6 @@ console.log(a + b);`,
             </div>
           )}
 
-          {/* Monaco Editor */}
-          <div style={{ borderRadius: "14px", overflow: "hidden", border: `1px solid ${t.border}`, opacity: loading ? 0.55 : 1, pointerEvents: loading ? "none" : "auto", transition: "opacity 0.25s" }}>
-            <Editor
-              height="440px"
-              theme={t.editorTheme}
-              language={language}
-              value={code}
-              onChange={(v) => setCode(v)}
-              options={{ fontSize: 14, minimap: { enabled: false }, scrollBeyondLastLine: false }}
-            />
-          </div>
-
           {/* Output + Review grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "24px" }}>
             {/* Output panel */}
@@ -594,11 +1202,12 @@ console.log(a + b);`,
               </div>
             </div>
           </div>
+          </div>
         </div>
 
         {/* Right: AI Chat panel */}
         {chatOpen && (
-          <div style={{ width: "360px", flexShrink: 0, background: t.chatBg, borderRadius: "16px", border: `1px solid ${t.chatBorder}`, display: "flex", flexDirection: "column", height: "calc(100vh - 140px)", position: "sticky", top: "20px", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+          <div style={{ width: "360px", flexShrink: 0, background: t.chatBg, borderRadius: "16px", border: `1px solid ${t.chatBorder}`, display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${t.chatBorder}`, background: t.chatSurface, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: "700", fontSize: "15px" }}>💬 AI Chat Assistant</div>
@@ -616,7 +1225,7 @@ console.log(a + b);`,
             <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
               {chatMessages.map((msg, i) => (
                 <div key={i} className="chat-msg" style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{ maxWidth: "88%", background: msg.role === "user" ? t.chatUser : t.chatAI, color: msg.role === "user" ? "white" : t.text, borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding: "10px 14px", fontSize: "13px", lineHeight: "1.7", border: msg.role === "assistant" ? `1px solid ${t.chatBorder}` : "none" }}>
+                  <div className="markdown-body" style={{ maxWidth: "88%", background: msg.role === "user" ? t.chatUser : t.chatAI, color: msg.role === "user" ? "white" : t.text, borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding: "10px 14px", fontSize: "13px", lineHeight: "1.7", border: msg.role === "assistant" ? `1px solid ${t.chatBorder}` : "none" }}>
                     <ReactMarkdown>{msg.text}</ReactMarkdown>
                   </div>
                 </div>
@@ -636,7 +1245,12 @@ console.log(a + b);`,
               <input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChat()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendChat();
+                  }
+                }}
                 placeholder="Ask about your code…"
                 disabled={chatLoading}
                 style={{ flex: 1, background: t.chatBg, color: t.text, border: `1px solid ${t.chatBorder}`, borderRadius: "10px", padding: "10px 14px", fontSize: "14px", fontFamily: "inherit", outline: "none", opacity: chatLoading ? 0.7 : 1 }}

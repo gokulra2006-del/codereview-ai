@@ -2,11 +2,22 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import { reviewCode } from "./services/openrouter.js";
 import { executeCode } from "./services/judge0.js";
+import authRouter from "./routes/auth.js";
+import { verifyToken, optionalAuth } from "./middleware/auth.js";
+import { addHistory, getHistoryByUserId } from "./models/History.js";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
+
+console.log("Checking API Key setup...", process.env.OPENROUTER_API_KEY ? "Loaded Successfully" : "MISSING!");
+console.log("JWT Secret:", process.env.JWT_SECRET ? "Loaded Successfully" : "MISSING!");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,61 +31,135 @@ app.use(limiter);
 
 app.get("/", (_req, res) => res.send("Backend Running"));
 
-// Review route
-app.post("/api/review", async (req, res) => {
+// Auth routes
+app.use("/api/auth", authRouter);
+
+// 1. Review route
+app.post("/api/review", optionalAuth, async (req, res) => {
   try {
-    const { code, language } = req.body;
-    const review = await reviewCode(code, language);
+    const { code, language, model } = req.body;
+    if (!code) return res.status(400).json({ error: "Code content is missing." });
+    const review = await reviewCode(code, language, model);
+    
+    // Save history if user is logged in
+    if (req.user) {
+      addHistory({ userId: req.user.id, type: "review", language, code, result: review });
+    }
+
     res.json({ review });
   } catch (error) {
-    console.error("[Review Error]", error.response?.data || error.message);
-    res.status(500).json({ error: "Review failed" });
+    console.error("[Review Route Error]", error.message);
+    res.status(500).json({ error: error.message || "Review failed" });
   }
 });
 
-// Run route
-app.post("/api/run", async (req, res) => {
+// 2. Run route
+app.post("/api/run", optionalAuth, async (req, res) => {
   try {
-    const { code, languageId, stdin } = req.body;
+    const { code, languageId, stdin, language } = req.body; // get language string from frontend
     const result = await executeCode(code, languageId, stdin);
+    
+    // Save history if user is logged in
+    if (req.user) {
+      addHistory({ userId: req.user.id, type: "run", language: language || "unknown", code, result: result.stdout || result.stderr || result.compile_output || "Executed" });
+    }
+
     res.json(result);
   } catch (error) {
-    console.error("[Run Error]", error.response?.data || error.message);
+    console.error("[Run Route Error]", error.message);
     res.status(500).json({ error: "Execution failed" });
   }
 });
 
-// ✅ NEW: Chat route
+// 2.5 History route
+app.get("/api/history", verifyToken, (req, res) => {
+  try {
+    const history = getHistoryByUserId(req.user.id);
+    res.json({ history });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch history" });
+  }
+});
+
+// 3. Chat route
 app.post("/api/chat", async (req, res) => {
   try {
-    const { question, code, language } = req.body;
+    const { question, code, language, model: preferredModel } = req.body;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful coding assistant. Answer clearly and concisely. Use markdown formatting.",
-          },
-          {
-            role: "user",
-            content: `The user is working with this ${language} code:\n\n\`\`\`${language}\n${code}\n\`\`\`\n\nQuestion: ${question}`,
-          },
-        ],
-      }),
-    });
+    if (!process.env.OPENROUTER_API_KEY) {
+      return res.status(500).json({ error: "OpenRouter API Key is missing on the server." });
+    }
 
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || "No response received.";
-    res.json({ reply });
+    const CHAT_MODELS = [
+      "meta-llama/llama-3.3-70b-instruct:free",
+      "google/gemma-3-27b-it:free",
+      "openai/gpt-oss-120b:free",
+      "moonshotai/kimi-k2:free",
+      "qwen/qwen3-coder:free",
+    ];
+
+    let lastError = null;
+
+    const chatModelsToTry = [...CHAT_MODELS];
+    if (preferredModel && preferredModel !== "auto") {
+      const index = chatModelsToTry.indexOf(preferredModel);
+      if (index > -1) {
+        chatModelsToTry.splice(index, 1);
+      }
+      chatModelsToTry.unshift(preferredModel);
+    }
+
+    for (const model of chatModelsToTry) {
+      try {
+        console.log(`[Chat] Trying model: ${model}`);
+
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:3000",
+            "X-Title": "Code Review AI Project",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 4096,
+            messages: [
+              {
+                role: "system",
+                content: "You are an elite coding assistant. Provide the most detailed, thorough, and exhaustive answers possible. Explain all concepts, trade-offs, alternative approaches, and edge cases in depth. Provide full code examples, step-by-step breakdowns, and deep technical context. Use markdown formatting.",
+              },
+              {
+                role: "user",
+                content: `The user is working with this ${language} code:\n\n\`\`\`${language}\n${code}\n\`\`\`\n\nQuestion: ${question}`,
+              },
+            ],
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          console.warn(`[Chat] Model ${model} failed:`, data.error.message);
+          lastError = data.error.message;
+          continue;
+        }
+
+        const reply = data.choices?.[0]?.message?.content;
+        if (reply) {
+          console.log(`✅ Chat reply from: ${model}`);
+          res.json({ reply });
+          return;
+        }
+      } catch (err) {
+        console.warn(`[Chat] Model ${model} threw:`, err.message);
+        lastError = err.message;
+      }
+    }
+
+    res.status(500).json({ error: `All models failed. Last error: ${lastError}` });
   } catch (error) {
-    console.error("[Chat Error]", error.message);
+    console.error("[Chat Route Error]", error.message);
     res.status(500).json({ error: "Chat failed" });
   }
 });
