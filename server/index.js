@@ -91,11 +91,11 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const CHAT_MODELS = [
-      "meta-llama/llama-3.3-70b-instruct:free",
-      "google/gemma-3-27b-it:free",
-      "openai/gpt-oss-120b:free",
-      "moonshotai/kimi-k2:free",
-      "qwen/qwen3-coder:free",
+      "google/gemini-2.0-flash-lite-preview-02-05:free",
+      "google/gemini-2.0-pro-exp-02-05:free",
+      "meta-llama/llama-3.3-70b-instruct",
+      "google/gemma-3-27b-it",
+      "qwen/qwen-2.5-coder-32b-instruct"
     ];
 
     let lastError = null;
