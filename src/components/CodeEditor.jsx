@@ -120,71 +120,58 @@ const spinnerStyle = `
 
 /* Premium Toolbar Styles */
 .pro-toolbar {
-  background: rgba(20, 25, 35, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 12px 16px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .pro-btn {
-  background: rgba(255, 255, 255, 0.04);
-  color: #e2e8f0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 8px 14px;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  background: transparent;
+}
+.pro-btn:hover {
+  transform: translateY(-1px);
+}
+.pro-btn:active {
+  transform: translateY(0);
+}
+.pro-select {
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><polyline points="6 9 12 15 18 9"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+.pro-primary-btn {
+  border-radius: 6px;
+  padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.pro-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-.pro-btn:active {
-  transform: translateY(1px);
-}
-.pro-select {
-  background: rgba(0, 0, 0, 0.2);
-  color: #e2e8f0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 14px;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s;
-  appearance: none;
-  background-image: url('data:image/svg+xml;utf8,<svg fill="none" height="20" stroke="%23e2e8f0" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><polyline points="6 9 12 15 18 9"/></svg>');
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  padding-right: 32px;
-}
-.pro-select:hover {
-  border-color: rgba(255, 255, 255, 0.25);
-  background-color: rgba(255, 255, 255, 0.05);
-}
-.pro-primary-btn {
-  border-radius: 8px;
-  padding: 8px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 6px;
+  transition: all 0.2s ease;
   border: none;
 }
 .pro-primary-btn:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 .pro-primary-btn:active {
   transform: translateY(0);
@@ -423,23 +410,23 @@ console.log(a + b);`,
 
   const t = darkMode
     ? {
-        bg: "#020617", surface: "#0f172a", card: "#1e293b", border: "#334155",
-        text: "#f1f5f9", muted: "#94a3b8", pre: "#020617", preText: "#cbd5e1",
-        editorTheme: "vs-dark", selectBg: "#1e293b", btnCopy: "#475569",
-        btnReview: "#4f46e5", btnRun: "#16a34a", toggleBg: "#1e293b",
-        toggleText: "#facc15", statBg: "#1e293b",
-        chatBg: "#0f172a", chatSurface: "#1e293b", chatUser: "#4f46e5",
-        chatAI: "#1e293b", chatBorder: "#334155",
-        modalBg: "#0f172a",
+        bg: "#000000", surface: "#0a0a0a", card: "#111111", border: "#333333",
+        text: "#ffffff", muted: "#888888", pre: "#111111", preText: "#ffffff",
+        editorTheme: "vs-dark", selectBg: "#111111", btnCopy: "#888888",
+        btnReview: "#ffffff", btnReviewText: "#000000", btnRun: "#ffffff", btnRunText: "#000000", toggleBg: "#111111",
+        toggleText: "#ffffff", statBg: "#111111",
+        chatBg: "#0a0a0a", chatSurface: "#111111", chatUser: "#333333",
+        chatAI: "#111111", chatBorder: "#333333",
+        modalBg: "#0a0a0a",
       }
     : {
-        bg: "#f1f5f9", surface: "#ffffff", card: "#e2e8f0", border: "#cbd5e1",
-        text: "#0f172a", muted: "#64748b", pre: "#f8fafc", preText: "#1e293b",
-        editorTheme: "vs-light", selectBg: "#e2e8f0", btnCopy: "#64748b",
-        btnReview: "#4f46e5", btnRun: "#16a34a", toggleBg: "#e2e8f0",
-        toggleText: "#1d4ed8", statBg: "#e2e8f0",
-        chatBg: "#ffffff", chatSurface: "#f1f5f9", chatUser: "#4f46e5",
-        chatAI: "#e2e8f0", chatBorder: "#cbd5e1",
+        bg: "#ffffff", surface: "#fafafa", card: "#ffffff", border: "#eaeaea",
+        text: "#000000", muted: "#666666", pre: "#fafafa", preText: "#000000",
+        editorTheme: "vs-light", selectBg: "#ffffff", btnCopy: "#666666",
+        btnReview: "#000000", btnReviewText: "#ffffff", btnRun: "#000000", btnRunText: "#ffffff", toggleBg: "#ffffff",
+        toggleText: "#000000", statBg: "#fafafa",
+        chatBg: "#ffffff", chatSurface: "#fafafa", chatUser: "#000000",
+        chatAI: "#fafafa", chatBorder: "#eaeaea",
         modalBg: "#ffffff",
       };
 
@@ -636,13 +623,13 @@ console.log(a + b);`,
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
               <button
                 onClick={() => navigate("/login")}
-                style={{ display: "flex", alignItems: "center", gap: "6px", background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "white", border: "none", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: t.text, color: t.bg, border: "none", borderRadius: "8px", padding: "10px 24px", cursor: "pointer", fontWeight: "600", fontSize: "14px", fontFamily: "inherit" }}
               >
                 <User size={16} /> Login
               </button>
               <button
                 onClick={() => navigate("/signup")}
-                style={{ display: "flex", alignItems: "center", gap: "6px", background: "transparent", color: "#22d3ee", border: "1px solid rgba(34,211,238,0.4)", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: "transparent", color: t.text, border: `1px solid ${t.border}`, borderRadius: "8px", padding: "10px 24px", cursor: "pointer", fontWeight: "600", fontSize: "14px", fontFamily: "inherit" }}
               >
                 <ChevronRight size={16} /> Sign Up Free
               </button>
@@ -777,21 +764,21 @@ console.log(a + b);`,
       {!isAuthenticated && (
         <div
           className="guest-banner"
-          style={{ marginBottom: "12px", background: "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(34,211,238,0.08))", border: "1px solid rgba(99,102,241,0.3)", borderRadius: "12px", padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}
+          style={{ marginBottom: "12px", background: t.card, border: `1px solid ${t.border}`, borderRadius: "12px", padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}
         >
-          <span style={{ fontSize: "13px", color: "#a5b4fc", display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontSize: "13px", color: t.text, display: "flex", alignItems: "center", gap: "8px" }}>
             <Lock size={14} /> <strong>Guest Mode</strong> — {GUEST_LIMIT - guestReviews} review{GUEST_LIMIT - guestReviews !== 1 ? "s" : ""} &amp; {GUEST_LIMIT - guestRuns} run{GUEST_LIMIT - guestRuns !== 1 ? "s" : ""} left today
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
             <button
               onClick={() => navigate("/login")}
-              style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "white", border: "none", borderRadius: "8px", padding: "6px 16px", cursor: "pointer", fontSize: "12px", fontWeight: "700", fontFamily: "inherit" }}
+              style={{ background: t.text, color: t.bg, border: "none", borderRadius: "6px", padding: "4px 12px", cursor: "pointer", fontSize: "12px", fontWeight: "600", fontFamily: "inherit" }}
             >
               Login for unlimited access
             </button>
             <button
               onClick={() => navigate("/signup")}
-              style={{ background: "transparent", color: "#22d3ee", border: "1px solid rgba(34,211,238,0.35)", borderRadius: "8px", padding: "6px 14px", cursor: "pointer", fontSize: "12px", fontWeight: "600", fontFamily: "inherit" }}
+              style={{ background: "transparent", color: t.text, border: `1px solid ${t.border}`, borderRadius: "6px", padding: "4px 12px", cursor: "pointer", fontSize: "12px", fontWeight: "600", fontFamily: "inherit" }}
             >
               Sign Up Free
             </button>
@@ -822,13 +809,13 @@ console.log(a + b);`,
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
               <button
                 onClick={cancelTimer}
-                style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit", transition: "all 0.2s" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "8px", padding: "10px 24px", cursor: "pointer", fontWeight: "600", fontSize: "13px", fontFamily: "inherit", transition: "all 0.2s" }}
               >
                 <X size={16} /> Yes, Cancel Interview
               </button>
               <button
                 onClick={() => setShowCancelConfirm(false)}
-                style={{ display: "flex", alignItems: "center", gap: "6px", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "white", border: "none", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: t.text, color: t.bg, border: "none", borderRadius: "8px", padding: "10px 24px", cursor: "pointer", fontWeight: "600", fontSize: "13px", fontFamily: "inherit" }}
               >
                 <Play size={16} /> Keep Going
               </button>
@@ -887,16 +874,13 @@ console.log(a + b);`,
       {/* Premium Header Navbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "16px", borderBottom: `1px solid ${t.border}`, flexWrap: "wrap", gap: "14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={() => navigate("/")}>
-          <div style={{ background: "linear-gradient(135deg,#6366f1,#22d3ee)", width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "900", fontSize: "16px" }}>
+          <div style={{ background: t.text, width: "32px", height: "32px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: t.bg, fontWeight: "900", fontSize: "16px" }}>
             <Code2 size={20} />
           </div>
           <div>
-            <h1 style={{ fontSize: "22px", fontWeight: "800", margin: 0, letterSpacing: "-0.5px", background: "linear-gradient(135deg,#6366f1,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <h1 style={{ fontSize: "18px", fontWeight: "700", margin: 0, letterSpacing: "-0.5px", color: t.text }}>
               CodeReview AI
             </h1>
-            <p style={{ color: t.muted, margin: "2px 0 0", fontSize: "12px", fontWeight: "500" }}>
-              Premium Code Execution &amp; Review
-            </p>
           </div>
         </div>
 
@@ -986,7 +970,7 @@ console.log(a + b);`,
               </select>
               
               <select className="pro-select" onChange={handleTemplate} value="">
-                <option value="" disabled>🚀 Load Template...</option>
+                <option value="" disabled>Load Template...</option>
                 <option value="javascript">React / Node.js</option>
                 <option value="python">Python Script</option>
                 <option value="java">Java Main Class</option>
@@ -1013,11 +997,11 @@ console.log(a + b);`,
 
               {/* Guest usage counters */}
               {!isAuthenticated && (
-                <div style={{ display: "flex", gap: "8px", fontSize: "12px", color: t.muted, padding: "0 8px", borderLeft: `1px solid rgba(255,255,255,0.1)`, borderRight: `1px solid rgba(255,255,255,0.1)` }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: "4px", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc", borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
+                <div style={{ display: "flex", gap: "8px", fontSize: "12px", color: t.muted, padding: "0 8px", borderLeft: `1px solid ${t.border}`, borderRight: `1px solid ${t.border}` }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px", background: t.card, border: `1px solid ${t.border}`, color: t.text, borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
                     <Search size={12} /> {guestReviews}/{GUEST_LIMIT} reviews
                   </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: "4px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80", borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px", background: t.card, border: `1px solid ${t.border}`, color: t.text, borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
                     <Play size={12} /> {guestRuns}/{GUEST_LIMIT} runs
                   </span>
                 </div>
@@ -1052,9 +1036,8 @@ console.log(a + b);`,
                   title={timerMode && timerRunning && activeModeConfig.blockReview ? `AI Review locked in ${activeModeConfig.title} mode` : ""}
                   style={{
                     background: timerMode && timerRunning && activeModeConfig.blockReview ? "#7f1d1d" : t.btnReview,
-                    color: "white",
-                    border: timerMode && timerRunning && activeModeConfig.blockReview ? "1px solid rgba(239,68,68,0.6)" : "none",
-                    boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+                    color: t.btnReviewText,
+                    border: timerMode && timerRunning && activeModeConfig.blockReview ? "1px solid rgba(239,68,68,0.6)" : `1px solid ${t.border}`,
                   }}
                 >
                   {timerMode && timerRunning && activeModeConfig.blockReview
@@ -1062,7 +1045,7 @@ console.log(a + b);`,
                     : loading ? <><Loader2 size={14} className="spinner" /> Reviewing…</> : <><Search size={14} /> Review</>
                   }
                 </button>
-                <button className="pro-primary-btn" onClick={handleRun} disabled={loading} style={{ background: t.btnRun, color: "white", boxShadow: "0 4px 14px rgba(34, 197, 94, 0.3)" }}>
+                <button className="pro-primary-btn" onClick={handleRun} disabled={loading} style={{ background: t.btnRun, color: t.btnRunText, border: `1px solid ${t.border}` }}>
                   {loading ? <><Loader2 size={14} className="spinner" /> Running…</> : <><Play size={14} /> Run</>}
                 </button>
               </div>
