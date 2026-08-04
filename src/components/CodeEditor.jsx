@@ -5,6 +5,12 @@ import ReactMarkdown from "react-markdown";
 import toast, { Toaster } from "react-hot-toast";
 import { reviewCode, runCode, chatWithAI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import {
+  Play, Search, MessageSquare, Clock, Moon, Sun,
+  Settings, Copy, Check, X, AlertTriangle, Lock,
+  ChevronRight, Terminal, User, LogOut, Code2,
+  ShieldAlert, PlayCircle, Loader2, Pause, CheckCircle2, XCircle, Send, Server
+} from "lucide-react";
 
 // ─── Guest usage helpers (localStorage, resets every 24h) ────────────────────
 const GUEST_LIMIT = 3;
@@ -202,9 +208,9 @@ const INTERVIEW_MODES = [
   {
     id: "low",
     label: "Low",
-    emoji: "🟢",
+    emoji: <CheckCircle2 size={18} />,
     title: "Practice",
-    desc: "AI Review ✅  ·  AI Chat ✅",
+    desc: "AI Review: Yes  ·  AI Chat: Yes",
     longDesc: "Full AI assistance — perfect for learning and practice sessions.",
     color: "#22c55e",
     border: "rgba(34,197,94,0.35)",
@@ -215,9 +221,9 @@ const INTERVIEW_MODES = [
   {
     id: "med",
     label: "Med",
-    emoji: "🟡",
+    emoji: <ShieldAlert size={18} />,
     title: "Challenge",
-    desc: "AI Review ✅  ·  AI Chat ❌",
+    desc: "AI Review: Yes  ·  AI Chat: No",
     longDesc: "Review allowed but chat is off — simulate assisted interview prep.",
     color: "#f59e0b",
     border: "rgba(245,158,11,0.35)",
@@ -228,9 +234,9 @@ const INTERVIEW_MODES = [
   {
     id: "strict",
     label: "Strict",
-    emoji: "🔴",
+    emoji: <XCircle size={18} />,
     title: "Real Interview",
-    desc: "AI Review ❌  ·  AI Chat ❌",
+    desc: "AI Review: No  ·  AI Chat: No",
     longDesc: "No AI assistance at all — exactly like a real coding interview.",
     color: "#ef4444",
     border: "rgba(239,68,68,0.35)",
@@ -285,7 +291,7 @@ int main() {
   const handleFormat = () => {
     if (editorRef.current) {
       editorRef.current.getAction('editor.action.formatDocument').run();
-      toast.success("✨ Code formatted");
+      toast.success("Code formatted");
     }
   };
 
@@ -298,7 +304,7 @@ int main() {
   // Chat
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([
-    { role: "assistant", text: "👋 Hi! I can help you understand, debug, or optimize your code. Ask me anything or pick a quick prompt!" }
+    { role: "assistant", text: "Hi! I can help you understand, debug, or optimize your code. Ask me anything or pick a quick prompt!" }
   ]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -331,7 +337,7 @@ int main() {
     setTimerRunning(false);
     clearInterval(timerRef.current);
     setShowCancelConfirm(false);
-    toast("⏹ Interview cancelled.", { icon: "🛑", duration: 3000 });
+    toast("Interview cancelled.", { icon: <X size={16} />, duration: 3000 });
   };
 
   // Shortcuts modal
@@ -357,10 +363,10 @@ int main() {
           if (prev <= 1) {
             clearInterval(timerRef.current);
             setTimerRunning(false);
-            toast.error("⏰ Time's up! Interview ended.", { duration: 5000 });
+            toast.error("Time's up! Interview ended.", { duration: 5000 });
             return 0;
           }
-          if (prev === 300) toast("⚠️ 5 minutes remaining!", { icon: "⏰" });
+          if (prev === 300) toast("5 minutes remaining!", { icon: <Clock size={16} /> });
           return prev - 1;
         });
       }, 1000);
@@ -499,7 +505,7 @@ console.log(a + b);`,
   const handleReview = async () => {
     // Block in Strict interview mode
     if (timerMode && timerRunning && activeModeConfig.blockReview) {
-      toast.error(`🔴 AI Review is disabled in ${activeModeConfig.title} mode. You've got this!`, { duration: 3000 });
+      toast.error(`AI Review is disabled in ${activeModeConfig.title} mode.`, { duration: 3000 });
       return;
     }
     if (!checkGuestLimit("review")) return;
@@ -572,7 +578,7 @@ console.log(a + b);`,
       const data = await chatWithAI(q, code, language);
       setChatMessages((prev) => [...prev, { role: "assistant", text: data.reply }]);
     } catch (err) {
-      setChatMessages((prev) => [...prev, { role: "assistant", text: "❌ Error getting response. Please try again." }]);
+      setChatMessages((prev) => [...prev, { role: "assistant", text: "Error getting response. Please try again." }]);
     } finally {
       setChatLoading(false);
     }
@@ -596,11 +602,11 @@ console.log(a + b);`,
   };
 
   const tcStatusIcon = (s) => {
-    if (s === "pass") return "✅";
-    if (s === "fail") return "❌";
-    if (s === "running") return "⏳";
-    if (s === "ran") return "▶";
-    return "○";
+    if (s === "pass") return <Check size={14} />;
+    if (s === "fail") return <X size={14} />;
+    if (s === "running") return <Loader2 size={14} className="spinner" />;
+    if (s === "ran") return <Play size={14} />;
+    return <ChevronRight size={14} />;
   };
 
   return (
@@ -619,7 +625,7 @@ console.log(a + b);`,
             style={{ background: "#0f172a", border: "1px solid rgba(99,102,241,0.4)", borderRadius: "20px", padding: "36px 32px", maxWidth: "420px", width: "100%", boxShadow: "0 32px 80px rgba(0,0,0,0.6)", textAlign: "center" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: "44px", marginBottom: "16px" }}>🔒</div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px", color: "#6366f1" }}><Lock size={44} /></div>
             <h2 style={{ fontSize: "20px", fontWeight: "800", marginBottom: "12px", color: "#f1f5f9" }}>
               Daily Limit Reached
             </h2>
@@ -630,15 +636,15 @@ console.log(a + b);`,
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
               <button
                 onClick={() => navigate("/login")}
-                style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "white", border: "none", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "white", border: "none", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
               >
-                🔑 Login
+                <User size={16} /> Login
               </button>
               <button
                 onClick={() => navigate("/signup")}
-                style={{ background: "transparent", color: "#22d3ee", border: "1px solid rgba(34,211,238,0.4)", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: "transparent", color: "#22d3ee", border: "1px solid rgba(34,211,238,0.4)", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
               >
-                🚀 Sign Up Free
+                <ChevronRight size={16} /> Sign Up Free
               </button>
             </div>
             <button
@@ -655,7 +661,7 @@ console.log(a + b);`,
       {showShortcuts && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setShowShortcuts(false)}>
           <div style={{ background: t.modalBg, border: `1px solid ${t.border}`, borderRadius: "16px", padding: "28px", minWidth: "340px", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ margin: "0 0 20px", fontSize: "18px" }}>⌨️ Keyboard Shortcuts</h2>
+            <h2 style={{ margin: "0 0 20px", fontSize: "18px", display: "flex", alignItems: "center", gap: "8px" }}><Terminal size={18} /> Keyboard Shortcuts</h2>
             {[
               ["Ctrl + Enter", "Run Code"],
               ["Ctrl + Shift + R", "Review Code"],
@@ -682,7 +688,7 @@ console.log(a + b);`,
 
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
-              <div style={{ fontSize: "24px" }}>⏱</div>
+              <div style={{ color: t.text }}><Clock size={24} /></div>
               <div>
                 <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "800" }}>Interview Timer</h2>
                 <p style={{ margin: "2px 0 0", fontSize: "12px", color: t.muted }}>Set duration and AI assistance level</p>
@@ -705,7 +711,7 @@ console.log(a + b);`,
                       display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
                     }}
                   >
-                    <span style={{ fontSize: "20px" }}>{mode.emoji}</span>
+                    <span style={{ color: interviewMode === mode.id ? mode.color : t.text }}>{mode.emoji}</span>
                     <span style={{ fontSize: "13px", fontWeight: "800", color: interviewMode === mode.id ? mode.color : t.text }}>{mode.label}</span>
                     <span style={{ fontSize: "10px", color: t.muted, textAlign: "center", lineHeight: 1.4 }}>{mode.title}</span>
                   </button>
@@ -720,11 +726,11 @@ console.log(a + b);`,
                     <div style={{ color: cfg.color, fontWeight: "700", marginBottom: "4px" }}>{cfg.emoji} {cfg.title} Mode</div>
                     <div style={{ color: t.muted, lineHeight: 1.5 }}>{cfg.longDesc}</div>
                     <div style={{ marginTop: "8px", fontSize: "12px", display: "flex", gap: "14px" }}>
-                      <span style={{ color: !cfg.blockReview ? "#22c55e" : "#ef4444" }}>
-                        {!cfg.blockReview ? "✅" : "🚫"} AI Review
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", color: !cfg.blockReview ? "#22c55e" : "#ef4444" }}>
+                        {!cfg.blockReview ? <Check size={12} /> : <X size={12} />} AI Review
                       </span>
-                      <span style={{ color: !cfg.blockChat ? "#22c55e" : "#ef4444" }}>
-                        {!cfg.blockChat ? "✅" : "🚫"} AI Chat
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", color: !cfg.blockChat ? "#22c55e" : "#ef4444" }}>
+                        {!cfg.blockChat ? <Check size={12} /> : <X size={12} />} AI Chat
                       </span>
                     </div>
                   </div>
@@ -759,9 +765,9 @@ console.log(a + b);`,
                 setShowTimerSetup(false);
                 toast.success(`${cfg.emoji} ${cfg.title} Interview started! ${cfg.blockReview && cfg.blockChat ? "AI fully disabled." : cfg.blockChat ? "Chat disabled." : "Good luck!"}`);
               }}
-              style={{ background: `linear-gradient(135deg, ${activeModeConfig.color}, ${activeModeConfig.color}cc)`, color: "white", border: "none", borderRadius: "12px", padding: "14px", width: "100%", cursor: "pointer", fontWeight: "800", fontSize: "15px", fontFamily: "inherit", boxShadow: `0 4px 20px ${activeModeConfig.color}44` }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: `linear-gradient(135deg, ${activeModeConfig.color}, ${activeModeConfig.color}cc)`, color: "white", border: "none", borderRadius: "12px", padding: "14px", width: "100%", cursor: "pointer", fontWeight: "800", fontSize: "15px", fontFamily: "inherit", boxShadow: `0 4px 20px ${activeModeConfig.color}44` }}
             >
-              ▶ Start {activeModeConfig.emoji} {activeModeConfig.title} Interview
+              <Play size={16} /> Start {activeModeConfig.title} Interview
             </button>
           </div>
         </div>
@@ -774,7 +780,7 @@ console.log(a + b);`,
           style={{ marginBottom: "12px", background: "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(34,211,238,0.08))", border: "1px solid rgba(99,102,241,0.3)", borderRadius: "12px", padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}
         >
           <span style={{ fontSize: "13px", color: "#a5b4fc", display: "flex", alignItems: "center", gap: "8px" }}>
-            🔒 <strong>Guest Mode</strong> — {GUEST_LIMIT - guestReviews} review{GUEST_LIMIT - guestReviews !== 1 ? "s" : ""} &amp; {GUEST_LIMIT - guestRuns} run{GUEST_LIMIT - guestRuns !== 1 ? "s" : ""} left today
+            <Lock size={14} /> <strong>Guest Mode</strong> — {GUEST_LIMIT - guestReviews} review{GUEST_LIMIT - guestReviews !== 1 ? "s" : ""} &amp; {GUEST_LIMIT - guestRuns} run{GUEST_LIMIT - guestRuns !== 1 ? "s" : ""} left today
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
             <button
@@ -804,10 +810,10 @@ console.log(a + b);`,
             style={{ background: t.modalBg, border: `1px solid ${activeModeConfig.border}`, borderRadius: "20px", padding: "36px 32px", maxWidth: "400px", width: "100%", boxShadow: "0 32px 80px rgba(0,0,0,0.7)", textAlign: "center" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: "44px", marginBottom: "12px" }}>🛑</div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px", color: "#ef4444" }}><XCircle size={44} /></div>
             <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#f1f5f9", marginBottom: "10px" }}>Cancel Interview?</h2>
-            <p style={{ color: t.muted, fontSize: "13px", lineHeight: "1.7", marginBottom: "8px" }}>
-              You are in <strong style={{ color: activeModeConfig.color }}>{activeModeConfig.emoji} {activeModeConfig.title} mode</strong>
+            <p style={{ color: t.muted, fontSize: "13px", lineHeight: "1.7", marginBottom: "8px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+              You are in <strong style={{ color: activeModeConfig.color, display: "flex", alignItems: "center", gap: "4px" }}>{activeModeConfig.emoji} {activeModeConfig.title} mode</strong>
             </p>
             <p style={{ color: t.muted, fontSize: "13px", lineHeight: "1.7", marginBottom: "28px" }}>
               Time elapsed: <strong style={{ color: "#f1f5f9" }}>{formatTimer(timerSeconds - timerLeft)}</strong> of <strong style={{ color: "#f1f5f9" }}>{formatTimer(timerSeconds)}</strong>.
@@ -816,15 +822,15 @@ console.log(a + b);`,
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
               <button
                 onClick={cancelTimer}
-                style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit", transition: "all 0.2s" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit", transition: "all 0.2s" }}
               >
-                🛑 Yes, Cancel Interview
+                <X size={16} /> Yes, Cancel Interview
               </button>
               <button
                 onClick={() => setShowCancelConfirm(false)}
-                style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "white", border: "none", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "white", border: "none", borderRadius: "12px", padding: "12px 28px", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" }}
               >
-                ▶ Keep Going
+                <Play size={16} /> Keep Going
               </button>
             </div>
           </div>
@@ -842,18 +848,18 @@ console.log(a + b);`,
           >
             {/* Left: mode info + restrictions */}
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              <span className="lock-pulse" style={{ fontSize: "16px" }}>{cfg.emoji}</span>
+              <span className="lock-pulse" style={{ display: "flex", alignItems: "center", color: cfg.color }}>{cfg.emoji}</span>
               <span style={{ fontSize: "13px", fontWeight: "800", color: cfg.color }}>{cfg.title} Interview</span>
               <span style={{ fontSize: "12px", color: t.muted }}>|</span>
-              <span style={{ fontSize: "12px", color: timerLeft < 300 ? "#ef4444" : "#f1f5f9", fontWeight: "700", letterSpacing: "0.05em", fontVariantNumeric: "tabular-nums" }}>
-                {timerLeft < 300 ? "⚠️ " : ""}{formatTimer(timerLeft)} left
+              <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", color: timerLeft < 300 ? "#ef4444" : "#f1f5f9", fontWeight: "700", letterSpacing: "0.05em", fontVariantNumeric: "tabular-nums" }}>
+                {timerLeft < 300 ? <AlertTriangle size={12} /> : ""}{formatTimer(timerLeft)} left
               </span>
               <span style={{ fontSize: "12px", color: t.muted }}>|</span>
-              <span style={{ fontSize: "12px", color: !cfg.blockReview ? "#22c55e" : "#ef4444" }}>
-                {!cfg.blockReview ? "✅" : "🚫"} Review
+              <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", color: !cfg.blockReview ? "#22c55e" : "#ef4444" }}>
+                {!cfg.blockReview ? <Check size={12} /> : <X size={12} />} Review
               </span>
-              <span style={{ fontSize: "12px", color: !cfg.blockChat ? "#22c55e" : "#ef4444" }}>
-                {!cfg.blockChat ? "✅" : "🚫"} Chat
+              <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", color: !cfg.blockChat ? "#22c55e" : "#ef4444" }}>
+                {!cfg.blockChat ? <Check size={12} /> : <X size={12} />} Chat
               </span>
             </div>
 
@@ -864,14 +870,14 @@ console.log(a + b);`,
                 onClick={() => setTimerRunning((r) => !r)}
                 style={{ background: timerRunning ? "rgba(245,158,11,0.12)" : "rgba(34,197,94,0.12)", color: timerRunning ? "#f59e0b" : "#22c55e", border: `1px solid ${timerRunning ? "rgba(245,158,11,0.35)" : "rgba(34,197,94,0.35)"}`, borderRadius: "8px", padding: "6px 14px", cursor: "pointer", fontSize: "13px", fontWeight: "700", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "5px" }}
               >
-                {timerRunning ? "⏸ Pause" : "▶ Resume"}
+                {timerRunning ? <><Pause size={14} /> Pause</> : <><Play size={14} /> Resume</>}
               </button>
               {/* Cancel */}
               <button
                 onClick={() => { setTimerRunning(false); setShowCancelConfirm(true); }}
                 style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "8px", padding: "6px 14px", cursor: "pointer", fontSize: "13px", fontWeight: "700", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "5px" }}
               >
-                🛑 Cancel
+                <X size={14} /> Cancel
               </button>
             </div>
           </div>
@@ -882,7 +888,7 @@ console.log(a + b);`,
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "16px", borderBottom: `1px solid ${t.border}`, flexWrap: "wrap", gap: "14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={() => navigate("/")}>
           <div style={{ background: "linear-gradient(135deg,#6366f1,#22d3ee)", width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "900", fontSize: "16px" }}>
-            &lt;/&gt;
+            <Code2 size={20} />
           </div>
           <div>
             <h1 style={{ fontSize: "22px", fontWeight: "800", margin: 0, letterSpacing: "-0.5px", background: "linear-gradient(135deg,#6366f1,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
@@ -895,45 +901,44 @@ console.log(a + b);`,
         </div>
 
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-          {/* Timer chip in navbar */}
           {timerMode && (
             <div style={{ display: "flex", alignItems: "center", gap: "6px", background: timerLeft < 300 ? "rgba(239,68,68,0.15)" : activeModeConfig.bg, border: `1px solid ${timerLeft < 300 ? "#ef4444" : activeModeConfig.border}`, borderRadius: "10px", padding: "6px 12px" }}>
-              <span style={{ fontSize: "13px" }}>{activeModeConfig.emoji}</span>
+              <span style={{ display: "flex", alignItems: "center", color: activeModeConfig.color }}>{activeModeConfig.emoji}</span>
               <span className={timerLeft < 300 ? "timer-warning" : ""} style={{ fontSize: "15px", fontWeight: "800", color: timerLeft < 300 ? "#ef4444" : activeModeConfig.color, letterSpacing: "1px", fontVariantNumeric: "tabular-nums" }}>
                 {formatTimer(timerLeft)}
               </span>
-              <button onClick={() => setTimerRunning((r) => !r)} style={{ ...smallBtn, padding: "2px 8px", fontSize: "11px", color: timerRunning ? "#f59e0b" : "#22c55e" }}>
-                {timerRunning ? "⏸" : "▶"}
+              <button onClick={() => setTimerRunning((r) => !r)} style={{ ...smallBtn, padding: "2px 8px", fontSize: "11px", color: timerRunning ? "#f59e0b" : "#22c55e", display: "flex", alignItems: "center" }}>
+                {timerRunning ? <Pause size={12} /> : <Play size={12} />}
               </button>
               <button
                 onClick={() => { setTimerRunning(false); setShowCancelConfirm(true); }}
-                style={{ ...smallBtn, padding: "2px 8px", fontSize: "11px", color: "#f87171", borderColor: "rgba(239,68,68,0.35)" }}
+                style={{ ...smallBtn, padding: "2px 8px", fontSize: "11px", color: "#f87171", borderColor: "rgba(239,68,68,0.35)", display: "flex", alignItems: "center" }}
                 title="Cancel interview"
               >
-                ✕
+                <X size={12} />
               </button>
             </div>
           )}
 
           <button onClick={() => setShowTimerSetup(true)} style={{ background: t.toggleBg, color: t.text, border: `1px solid ${t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
-            ⏱ Timer
+            <Clock size={14} /> Timer
           </button>
           <button onClick={() => setShowShortcuts(true)} style={{ background: t.toggleBg, color: t.text, border: `1px solid ${t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
-            ⌨️ Shortcuts
+            <Terminal size={14} /> Shortcuts
           </button>
           {/* AI Chat button — hidden in Med/Strict interview mode */}
           {!(timerMode && activeModeConfig.blockChat) && (
             <button onClick={() => setChatOpen(!chatOpen)} style={{ background: chatOpen ? "#4f46e5" : t.toggleBg, color: chatOpen ? "white" : t.text, border: `1px solid ${chatOpen ? "#4f46e5" : t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px", transition: "all 0.2s" }}>
-              💬 AI Chat {chatOpen ? "▶" : "◀"}
+              <MessageSquare size={14} /> AI Chat {chatOpen ? <ChevronRight size={14} /> : <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />}
             </button>
           )}
           {timerMode && activeModeConfig.blockChat && (
             <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "10px", padding: "8px 14px", fontSize: "12px", color: "#f87171", display: "flex", alignItems: "center", gap: "6px", opacity: 0.8 }}>
-              🚫 Chat Locked
+              <Lock size={12} /> Chat Locked
             </div>
           )}
-          <button onClick={() => setDarkMode(!darkMode)} style={{ background: t.toggleBg, color: t.toggleText, border: `1px solid ${t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>
-            {darkMode ? "☀️ Light" : "🌙 Dark"}
+          <button onClick={() => setDarkMode(!darkMode)} style={{ background: t.toggleBg, color: t.toggleText, border: `1px solid ${t.border}`, padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+            {darkMode ? <><Sun size={14} /> Light</> : <><Moon size={14} /> Dark</>}
           </button>
 
           {/* Auth section */}
@@ -991,30 +996,29 @@ console.log(a + b);`,
 
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center" }}>
               
-              {/* Secondary Actions Group */}
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 <button className="pro-btn" title="Editor Settings" onClick={() => setShowSettings(!showSettings)}>
-                  ⚙️
+                  <Settings size={16} />
                 </button>
                 <button className="pro-btn" onClick={handleFormat}>
-                  ✨ Format
+                  <Code2 size={16} /> Format
                 </button>
                 <button className="pro-btn" onClick={() => copy(code, "Code")}>
-                  📋 Copy
+                  <Copy size={16} /> Copy
                 </button>
                 <button className="pro-btn" onClick={() => setTestMode((m) => !m)} style={{ background: testMode ? "rgba(99,102,241,0.2)" : "", color: testMode ? "#a5b4fc" : "" }}>
-                  🧪 Tests {testMode ? "▲" : "▼"}
+                  <ShieldAlert size={16} /> Tests {testMode ? "▲" : "▼"}
                 </button>
               </div>
 
               {/* Guest usage counters */}
               {!isAuthenticated && (
                 <div style={{ display: "flex", gap: "8px", fontSize: "12px", color: t.muted, padding: "0 8px", borderLeft: `1px solid rgba(255,255,255,0.1)`, borderRight: `1px solid rgba(255,255,255,0.1)` }}>
-                  <span style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc", borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
-                    🔍 {guestReviews}/{GUEST_LIMIT} reviews
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc", borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
+                    <Search size={12} /> {guestReviews}/{GUEST_LIMIT} reviews
                   </span>
-                  <span style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80", borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
-                    ▶ {guestRuns}/{GUEST_LIMIT} runs
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80", borderRadius: "20px", padding: "4px 10px", fontWeight: "600" }}>
+                    <Play size={12} /> {guestRuns}/{GUEST_LIMIT} runs
                   </span>
                 </div>
               )}
@@ -1054,12 +1058,12 @@ console.log(a + b);`,
                   }}
                 >
                   {timerMode && timerRunning && activeModeConfig.blockReview
-                    ? <><span style={{ fontSize: "14px" }}>🔴</span> Locked</>
-                    : loading ? <><span className="spinner" /> Reviewing…</> : "🔍 Review"
+                    ? <><Lock size={14} /> Locked</>
+                    : loading ? <><Loader2 size={14} className="spinner" /> Reviewing…</> : <><Search size={14} /> Review</>
                   }
                 </button>
                 <button className="pro-primary-btn" onClick={handleRun} disabled={loading} style={{ background: t.btnRun, color: "white", boxShadow: "0 4px 14px rgba(34, 197, 94, 0.3)" }}>
-                  {loading ? <><span className="spinner" /> Running…</> : "▶ Run"}
+                  {loading ? <><Loader2 size={14} className="spinner" /> Running…</> : <><Play size={14} /> Run</>}
                 </button>
               </div>
             </div>
@@ -1080,8 +1084,8 @@ console.log(a + b);`,
           <div style={{ flexShrink: 0 }}>
           {!testMode && (
             <div style={{ marginBottom: "20px" }}>
-              <h3 style={{ margin: "0 0 10px", fontSize: "13px", color: t.muted, fontWeight: "600", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                📥 Custom Input <span style={{ fontSize: "11px", marginLeft: "8px", opacity: 0.6 }}>Ctrl+Enter to run</span>
+              <h3 style={{ margin: "0 0 10px", fontSize: "13px", color: t.muted, fontWeight: "600", letterSpacing: "0.05em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Terminal size={14} /> Custom Input <span style={{ fontSize: "11px", marginLeft: "8px", opacity: 0.6 }}>Ctrl+Enter to run</span>
               </h3>
               <textarea
                 value={stdin}
@@ -1096,7 +1100,7 @@ console.log(a + b);`,
           {testMode && (
             <div style={{ marginBottom: "20px", background: t.surface, borderRadius: "14px", border: `1px solid ${t.border}`, overflow: "hidden" }}>
               <div style={{ padding: "14px 18px", borderBottom: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700" }}>🧪 Test Cases</h3>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px" }}><ShieldAlert size={16} /> Test Cases</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button onClick={addTestCase} style={{ ...smallBtn, background: "#1e293b", color: "#22d3ee", borderColor: "#22d3ee", fontSize: "13px" }}>+ Add Case</button>
                   <button
@@ -1104,7 +1108,7 @@ console.log(a + b);`,
                     disabled={testLoading}
                     style={{ background: "#16a34a", color: "white", border: "none", borderRadius: "8px", padding: "6px 16px", cursor: testLoading ? "not-allowed" : "pointer", fontWeight: "700", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px", opacity: testLoading ? 0.7 : 1 }}
                   >
-                    {testLoading ? <><span className="spinner" style={{ width: "12px", height: "12px" }} /> Running…</> : "▶ Run All"}
+                    {testLoading ? <><Loader2 size={12} className="spinner" /> Running…</> : <><Play size={12} /> Run All</>}
                   </button>
                 </div>
               </div>
@@ -1112,8 +1116,8 @@ console.log(a + b);`,
               {/* Stats bar */}
               {testCases.some((tc) => tc.status !== "idle") && (
                 <div style={{ padding: "10px 18px", borderBottom: `1px solid ${t.border}`, display: "flex", gap: "16px", fontSize: "13px" }}>
-                  <span style={{ color: "#22c55e" }}>✅ {testCases.filter((tc) => tc.status === "pass").length} Passed</span>
-                  <span style={{ color: "#ef4444" }}>❌ {testCases.filter((tc) => tc.status === "fail").length} Failed</span>
+                  <span style={{ color: "#22c55e", display: "flex", alignItems: "center", gap: "4px" }}><Check size={14} /> {testCases.filter((tc) => tc.status === "pass").length} Passed</span>
+                  <span style={{ color: "#ef4444", display: "flex", alignItems: "center", gap: "4px" }}><X size={14} /> {testCases.filter((tc) => tc.status === "fail").length} Failed</span>
                   <span style={{ color: t.muted }}>Total: {testCases.filter((tc) => tc.input || tc.expectedOutput).length}</span>
                 </div>
               )}
@@ -1127,7 +1131,7 @@ console.log(a + b);`,
                         {tc.status === "pass" && <span style={{ color: "#22c55e", fontSize: "12px" }}>Passed</span>}
                         {tc.status === "fail" && <span style={{ color: "#ef4444", fontSize: "12px" }}>Failed</span>}
                       </span>
-                      <button onClick={() => removeTestCase(tc.id)} style={{ background: "none", border: "none", color: t.muted, cursor: "pointer", fontSize: "16px" }}>✕</button>
+                      <button onClick={() => removeTestCase(tc.id)} style={{ background: "none", border: "none", color: t.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={16} /></button>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                       <div>
@@ -1166,19 +1170,19 @@ console.log(a + b);`,
             {/* Output panel */}
             <div style={{ background: t.surface, borderRadius: "14px", padding: "20px", border: `1px solid ${t.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <h2 style={{ margin: 0, fontSize: "16px" }}>⚡ Output</h2>
+                <h2 style={{ margin: 0, fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}><Terminal size={16} /> Output</h2>
                 <button onClick={() => copy(output, "Output")} style={smallBtn}>Copy</button>
               </div>
               {stats && (
                 <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
-                  <span style={{ background: t.statBg, border: `1px solid ${t.border}`, borderRadius: "8px", padding: "4px 10px", fontSize: "12px", color: t.muted }}>
-                    ⏱ <strong style={{ color: t.text }}>{stats.time}</strong>
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px", background: t.statBg, border: `1px solid ${t.border}`, borderRadius: "8px", padding: "4px 10px", fontSize: "12px", color: t.muted }}>
+                    <Clock size={12} /> <strong style={{ color: t.text }}>{stats.time}</strong>
                   </span>
-                  <span style={{ background: t.statBg, border: `1px solid ${t.border}`, borderRadius: "8px", padding: "4px 10px", fontSize: "12px", color: t.muted }}>
-                    💾 <strong style={{ color: t.text }}>{stats.memory}</strong>
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px", background: t.statBg, border: `1px solid ${t.border}`, borderRadius: "8px", padding: "4px 10px", fontSize: "12px", color: t.muted }}>
+                    <Server size={12} /> <strong style={{ color: t.text }}>{stats.memory}</strong>
                   </span>
-                  <span style={{ background: t.statBg, border: `1px solid ${t.border}`, borderRadius: "8px", padding: "4px 10px", fontSize: "12px", color: t.muted }}>
-                    ✅ <strong style={{ color: statusColor(stats.status) }}>{stats.status}</strong>
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px", background: t.statBg, border: `1px solid ${t.border}`, borderRadius: "8px", padding: "4px 10px", fontSize: "12px", color: t.muted }}>
+                    <CheckCircle2 size={12} /> <strong style={{ color: statusColor(stats.status) }}>{stats.status}</strong>
                   </span>
                 </div>
               )}
@@ -1192,12 +1196,12 @@ console.log(a + b);`,
             {/* AI Review panel */}
             <div style={{ background: t.surface, borderRadius: "14px", padding: "20px", border: `1px solid ${t.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <h2 style={{ margin: 0, fontSize: "16px" }}>🤖 AI Review</h2>
+                <h2 style={{ margin: 0, fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}><Search size={16} /> AI Review</h2>
                 <button onClick={() => copy(review, "Review")} style={smallBtn}>Copy</button>
               </div>
               <div style={{ background: t.pre, padding: "16px", borderRadius: "10px", minHeight: "200px", color: t.preText, overflowX: "auto", lineHeight: "1.8", fontSize: "14px" }}>
                 {loading
-                  ? <span style={{ color: t.muted, display: "flex", alignItems: "center", gap: "10px" }}><span className="spinner" style={{ borderTopColor: "#4f46e5", borderColor: "rgba(79,70,229,0.3)" }} /> Generating review…</span>
+                  ? <span style={{ color: t.muted, display: "flex", alignItems: "center", gap: "10px" }}><Loader2 size={16} className="spinner" /> Generating review…</span>
                   : <ReactMarkdown>{review || "AI review will appear here…"}</ReactMarkdown>}
               </div>
             </div>
@@ -1210,10 +1214,10 @@ console.log(a + b);`,
           <div style={{ width: "360px", flexShrink: 0, background: t.chatBg, borderRadius: "16px", border: `1px solid ${t.chatBorder}`, display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${t.chatBorder}`, background: t.chatSurface, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontWeight: "700", fontSize: "15px" }}>💬 AI Chat Assistant</div>
+                <div style={{ fontWeight: "700", fontSize: "15px", display: "flex", alignItems: "center", gap: "8px" }}><MessageSquare size={16} /> AI Chat Assistant</div>
                 <div style={{ fontSize: "12px", color: t.muted, marginTop: "2px" }}>Ask about your {language} code</div>
               </div>
-              <button onClick={() => setChatMessages([{ role: "assistant", text: "👋 Chat cleared! Ask me anything about your code." }])} style={{ ...smallBtn, fontSize: "12px", padding: "4px 10px" }}>Clear</button>
+              <button onClick={() => setChatMessages([{ role: "assistant", text: "Chat cleared! Ask me anything about your code." }])} style={{ ...smallBtn, fontSize: "12px", padding: "4px 10px" }}>Clear</button>
             </div>
             <div style={{ padding: "10px 14px", borderBottom: `1px solid ${t.chatBorder}`, display: "flex", gap: "6px", flexWrap: "wrap" }}>
               {QUICK_PROMPTS.map((p) => (
@@ -1255,8 +1259,8 @@ console.log(a + b);`,
                 disabled={chatLoading}
                 style={{ flex: 1, background: t.chatBg, color: t.text, border: `1px solid ${t.chatBorder}`, borderRadius: "10px", padding: "10px 14px", fontSize: "14px", fontFamily: "inherit", outline: "none", opacity: chatLoading ? 0.7 : 1 }}
               />
-              <button onClick={() => sendChat()} disabled={chatLoading || !chatInput.trim()} style={{ background: "#4f46e5", color: "white", border: "none", borderRadius: "10px", padding: "10px 16px", cursor: chatLoading || !chatInput.trim() ? "not-allowed" : "pointer", fontSize: "18px", opacity: chatLoading || !chatInput.trim() ? 0.6 : 1 }}>
-                ➤
+              <button onClick={() => sendChat()} disabled={chatLoading || !chatInput.trim()} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#4f46e5", color: "white", border: "none", borderRadius: "10px", padding: "10px 16px", cursor: chatLoading || !chatInput.trim() ? "not-allowed" : "pointer", fontSize: "18px", opacity: chatLoading || !chatInput.trim() ? 0.6 : 1 }}>
+                <Send size={16} />
               </button>
             </div>
           </div>
