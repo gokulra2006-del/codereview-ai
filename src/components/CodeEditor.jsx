@@ -138,6 +138,11 @@ const spinnerStyle = `
   gap: 6px;
   transition: all 0.2s ease;
   background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: inherit;
+}
+:global(.light) .pro-btn {
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 .pro-btn:hover {
   transform: translateY(-1px);
@@ -157,24 +162,32 @@ const spinnerStyle = `
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 28px;
+  background-color: transparent;
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .pro-primary-btn {
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 13px;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
 }
-.pro-primary-btn:hover {
-  transform: translateY(-1px);
+.pro-primary-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
 }
-.pro-primary-btn:active {
+.pro-primary-btn:active:not(:disabled) {
   transform: translateY(0);
+}
+.pro-primary-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 `;
 
@@ -338,6 +351,11 @@ int main() {
     }
   }, [isAuthenticated]);
 
+  // Sync editor theme with dark mode
+  useEffect(() => {
+    setEditorTheme(darkMode ? "vs-dark" : "vs-light");
+  }, [darkMode]);
+
   useEffect(() => {
     if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, chatOpen, chatLoading]);
@@ -410,24 +428,28 @@ console.log(a + b);`,
 
   const t = darkMode
     ? {
-        bg: "#000000", surface: "#0a0a0a", card: "#111111", border: "#333333",
-        text: "#ffffff", muted: "#888888", pre: "#111111", preText: "#ffffff",
-        editorTheme: "vs-dark", selectBg: "#111111", btnCopy: "#888888",
-        btnReview: "#ffffff", btnReviewText: "#000000", btnRun: "#ffffff", btnRunText: "#000000", toggleBg: "#111111",
-        toggleText: "#ffffff", statBg: "#111111",
-        chatBg: "#0a0a0a", chatSurface: "#111111", chatUser: "#333333",
-        chatAI: "#111111", chatBorder: "#333333",
-        modalBg: "#0a0a0a",
+        bg: "#0f172a", surface: "#1e293b", card: "#1e293b", border: "#334155",
+        text: "#f8fafc", muted: "#94a3b8", pre: "#0f172a", preText: "#f1f5f9",
+        editorTheme: "vs-dark", selectBg: "#1e293b", btnCopy: "#94a3b8",
+        btnReview: "linear-gradient(135deg, #6366f1, #8b5cf6)", btnReviewText: "#ffffff", btnRun: "linear-gradient(135deg, #10b981, #059669)", btnRunText: "#ffffff", toggleBg: "#1e293b",
+        toggleText: "#f8fafc", statBg: "#0f172a",
+        chatBg: "#0f172a", chatSurface: "#1e293b", chatUser: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+        chatAI: "#1e293b", chatBorder: "#334155",
+        modalBg: "#0f172a",
+        shadow: "0 10px 30px rgba(0,0,0,0.4)",
+        btnPrimary: "#6366f1",
       }
     : {
-        bg: "#ffffff", surface: "#fafafa", card: "#ffffff", border: "#eaeaea",
-        text: "#000000", muted: "#666666", pre: "#fafafa", preText: "#000000",
-        editorTheme: "vs-light", selectBg: "#ffffff", btnCopy: "#666666",
-        btnReview: "#000000", btnReviewText: "#ffffff", btnRun: "#000000", btnRunText: "#ffffff", toggleBg: "#ffffff",
-        toggleText: "#000000", statBg: "#fafafa",
-        chatBg: "#ffffff", chatSurface: "#fafafa", chatUser: "#000000",
-        chatAI: "#fafafa", chatBorder: "#eaeaea",
+        bg: "#f1f5f9", surface: "#ffffff", card: "#ffffff", border: "#cbd5e1",
+        text: "#0f172a", muted: "#64748b", pre: "#f8fafc", preText: "#0f172a",
+        editorTheme: "vs-light", selectBg: "#ffffff", btnCopy: "#64748b",
+        btnReview: "linear-gradient(135deg, #4f46e5, #6366f1)", btnReviewText: "#ffffff", btnRun: "linear-gradient(135deg, #059669, #10b981)", btnRunText: "#ffffff", toggleBg: "#ffffff",
+        toggleText: "#0f172a", statBg: "#f1f5f9",
+        chatBg: "#f8fafc", chatSurface: "#ffffff", chatUser: "linear-gradient(135deg, #4f46e5, #6366f1)",
+        chatAI: "#ffffff", chatBorder: "#cbd5e1",
         modalBg: "#ffffff",
+        shadow: "0 10px 30px rgba(0,0,0,0.05)",
+        btnPrimary: "#4f46e5",
       };
 
   const statusColor = (s) => {
@@ -772,7 +794,7 @@ console.log(a + b);`,
           <div style={{ display: "flex", gap: "8px" }}>
             <button
               onClick={() => navigate("/login")}
-              style={{ background: t.text, color: t.bg, border: "none", borderRadius: "6px", padding: "4px 12px", cursor: "pointer", fontSize: "12px", fontWeight: "600", fontFamily: "inherit" }}
+              style={{ background: t.btnPrimary, color: "white", border: "none", borderRadius: "6px", padding: "4px 12px", cursor: "pointer", fontSize: "12px", fontWeight: "600", fontFamily: "inherit" }}
             >
               Login for unlimited access
             </button>
@@ -874,7 +896,7 @@ console.log(a + b);`,
       {/* Premium Header Navbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "16px", borderBottom: `1px solid ${t.border}`, flexWrap: "wrap", gap: "14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={() => navigate("/")}>
-          <div style={{ background: t.text, width: "32px", height: "32px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: t.bg, fontWeight: "900", fontSize: "16px" }}>
+          <div style={{ background: t.btnPrimary, width: "32px", height: "32px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "900", fontSize: "16px" }}>
             <Code2 size={20} />
           </div>
           <div>
@@ -962,14 +984,14 @@ console.log(a + b);`,
           {/* Controls row */}
           <div className="pro-toolbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "14px" }}>
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <select className="pro-select" value={language} onChange={handleLanguageChange}>
+              <select className="pro-select" value={language} onChange={handleLanguageChange} style={{ backgroundColor: t.selectBg, color: t.text, border: `1px solid ${t.border}` }}>
                 <option value="cpp">C++</option>
                 <option value="python">Python</option>
                 <option value="java">Java</option>
                 <option value="javascript">JavaScript</option>
               </select>
               
-              <select className="pro-select" onChange={handleTemplate} value="">
+              <select className="pro-select" onChange={handleTemplate} value="" style={{ backgroundColor: t.selectBg, color: t.text, border: `1px solid ${t.border}` }}>
                 <option value="" disabled>Load Template...</option>
                 <option value="javascript">React / Node.js</option>
                 <option value="python">Python Script</option>
@@ -981,16 +1003,16 @@ console.log(a + b);`,
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center" }}>
               
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <button className="pro-btn" title="Editor Settings" onClick={() => setShowSettings(!showSettings)}>
+                <button className="pro-btn" title="Editor Settings" onClick={() => setShowSettings(!showSettings)} style={{ color: t.text, border: `1px solid ${t.border}`, background: t.card }}>
                   <Settings size={16} />
                 </button>
-                <button className="pro-btn" onClick={handleFormat}>
+                <button className="pro-btn" onClick={handleFormat} style={{ color: t.text, border: `1px solid ${t.border}`, background: t.card }}>
                   <Code2 size={16} /> Format
                 </button>
-                <button className="pro-btn" onClick={() => copy(code, "Code")}>
+                <button className="pro-btn" onClick={() => copy(code, "Code")} style={{ color: t.text, border: `1px solid ${t.border}`, background: t.card }}>
                   <Copy size={16} /> Copy
                 </button>
-                <button className="pro-btn" onClick={() => setTestMode((m) => !m)} style={{ background: testMode ? "rgba(99,102,241,0.2)" : "", color: testMode ? "#a5b4fc" : "" }}>
+                <button className="pro-btn" onClick={() => setTestMode((m) => !m)} style={{ color: testMode ? "#a5b4fc" : t.text, background: testMode ? "rgba(99,102,241,0.2)" : t.card, border: `1px solid ${testMode ? "rgba(99,102,241,0.5)" : t.border}` }}>
                   <ShieldAlert size={16} /> Tests {testMode ? "▲" : "▼"}
                 </button>
               </div>
@@ -1053,7 +1075,7 @@ console.log(a + b);`,
           </div>
 
           {/* Monaco Editor */}
-          <div style={{ flex: 1, minHeight: "350px", display: "flex", flexDirection: "column", borderRadius: "14px", overflow: "hidden", border: `1px solid ${t.border}`, opacity: loading ? 0.55 : 1, pointerEvents: loading ? "none" : "auto", transition: "opacity 0.25s", marginBottom: "20px" }}>
+          <div style={{ flex: 1, minHeight: "350px", display: "flex", flexDirection: "column", borderRadius: "14px", overflow: "hidden", border: `1px solid ${t.border}`, opacity: loading ? 0.55 : 1, pointerEvents: loading ? "none" : "auto", transition: "opacity 0.25s", marginBottom: "20px", boxShadow: t.shadow }}>
             <Editor
               height="100%"
               theme={editorTheme}
@@ -1151,7 +1173,7 @@ console.log(a + b);`,
           {/* Output + Review grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "24px" }}>
             {/* Output panel */}
-            <div style={{ background: t.surface, borderRadius: "14px", padding: "20px", border: `1px solid ${t.border}` }}>
+            <div style={{ background: t.surface, borderRadius: "14px", padding: "20px", border: `1px solid ${t.border}`, boxShadow: t.shadow }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <h2 style={{ margin: 0, fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}><Terminal size={16} /> Output</h2>
                 <button onClick={() => copy(output, "Output")} style={smallBtn}>Copy</button>
@@ -1177,7 +1199,7 @@ console.log(a + b);`,
             </div>
 
             {/* AI Review panel */}
-            <div style={{ background: t.surface, borderRadius: "14px", padding: "20px", border: `1px solid ${t.border}` }}>
+            <div style={{ background: t.surface, borderRadius: "14px", padding: "20px", border: `1px solid ${t.border}`, boxShadow: t.shadow }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <h2 style={{ margin: 0, fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}><Search size={16} /> AI Review</h2>
                 <button onClick={() => copy(review, "Review")} style={smallBtn}>Copy</button>
