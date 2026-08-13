@@ -5,7 +5,7 @@ import { findByEmail, findById, createUser } from "../models/User.js";
 import { verifyToken } from "../middleware/auth.js";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const signToken = (user) =>
   jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, {
