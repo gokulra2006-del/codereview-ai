@@ -1,172 +1,306 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import rateLimit from "express-rate-limit";
-import path from "path";
-import { fileURLToPath } from "url";
-
-import { reviewCode } from "./services/openrouter.js";
-import { executeCode } from "./services/judge0.js";
+import { config, validateEnvironment } from "./config.js";
+import { connectDB } from "./db.js";
 import authRouter from "./routes/auth.js";
+import sessionRouter from "./routes/sessions.js";
 import { verifyToken, optionalAuth } from "./middleware/auth.js";
+import { errorHandler, notFoundHandler } from "./middleware/errors.js";
+import {
+  generalLimiter,
+  aiLimiter,
+  runLimiter,
+} from "./middleware/rateLimiter.js";
+import {
+  validateReview,
+  validateRun,
+  validateChat,
+  validateTestCases,
+} from "./middleware/validation.js";
+import {
+  enforceQuota,
+  recordUsage,
+  getQuotaInfo,
+  getClientIdentifier,
+} from "./middleware/quota.js";
+import {
+  reviewCode,
+  chatWithAI,
+  generateFocusedRegressionTests,
+} from "./services/openrouter.js";
+import {
+  executeCode,
+  executeTestCasesConcurrently,
+  LANGUAGE_MAP,
+} from "./services/judge0.js";
+import { verifyPatches } from "./services/verification.js";
 import { addHistory, getHistoryByUserId } from "./models/History.js";
+import { incrementReview, incrementRun } from "./models/User.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-dotenv.config({ path: path.join(__dirname, "..", ".env") });
-
-console.log("Checking API Key setup...", process.env.OPENROUTER_API_KEY ? "Loaded Successfully" : "MISSING!");
-console.log("JWT Secret:", process.env.JWT_SECRET ? "Loaded Successfully" : "MISSING!");
+// Validate env vars safely on startup
+validateEnvironment();
+connectDB().catch((err) => console.error("[Database Connection Error]", err.message));
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Security and CORS configuration
+const corsOrigin =
+  config.corsOrigin === "*"
+    ? true
+    : config.corsOrigin.split(",").map((o) => o.trim());
 
-const limiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
-app.use(limiter);
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+  })
+);
 
-app.get("/", (_req, res) => res.send("Backend Running"));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(generalLimiter);
+
+// Health check
+app.get("/", (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "Verified CodeReview AI Workspace API",
+    version: "2.0.0",
+  });
+});
+
+// Quota status endpoint
+app.get("/api/quota", optionalAuth, (req, res) => {
+  const quota = getQuotaInfo(req);
+  res.json({ quota });
+});
 
 // Auth routes
 app.use("/api/auth", authRouter);
 
-// 1. Review route
-app.post("/api/review", optionalAuth, async (req, res) => {
-  try {
-    const { code, language, model } = req.body;
-    if (!code) return res.status(400).json({ error: "Code content is missing." });
-    const review = await reviewCode(code, language, model);
-    
-    // Save history if user is logged in
-    if (req.user) {
-      addHistory({ userId: req.user.id, type: "review", language, code, result: review });
+// Session routes
+app.use("/api/sessions", sessionRouter);
+
+// 1. Review route (Structured Output with Repair & Server Quotas)
+app.post(
+  "/api/review",
+  aiLimiter,
+  optionalAuth,
+  enforceQuota("review"),
+  validateReview,
+  async (req, res, next) => {
+    try {
+      const { code, language, model } = req.body;
+      const review = await reviewCode(code, language, model);
+
+      // Record quota usage
+      const clientId = getClientIdentifier(req);
+      recordUsage(clientId, "review");
+
+      // Save to history if user is logged in
+      if (req.user) {
+        await addHistory({
+          userId: req.user.id,
+          type: "review",
+          language,
+          code,
+          result: review,
+        });
+        await incrementReview(req.user.id);
+      }
+
+      res.json({ review });
+    } catch (error) {
+      next(error);
     }
-
-    res.json({ review });
-  } catch (error) {
-    console.error("[Review Route Error]", error.message);
-    res.status(500).json({ error: error.message || "Review failed" });
   }
-});
+);
 
-// 2. Run route
-app.post("/api/run", optionalAuth, async (req, res) => {
-  try {
-    const { code, languageId, stdin, language } = req.body; // get language string from frontend
-    const result = await executeCode(code, languageId, stdin);
-    
-    // Save history if user is logged in
-    if (req.user) {
-      addHistory({ userId: req.user.id, type: "run", language: language || "unknown", code, result: result.stdout || result.stderr || result.compile_output || "Executed" });
+// 2. Run single code execution route
+app.post(
+  "/api/run",
+  runLimiter,
+  optionalAuth,
+  enforceQuota("run"),
+  validateRun,
+  async (req, res, next) => {
+    try {
+      const { code, languageId, stdin, language } = req.body;
+      const resolvedLangId = languageId || (language ? LANGUAGE_MAP[language] : null);
+
+      const result = await executeCode(code, resolvedLangId, stdin || "");
+
+      // Record quota usage
+      const clientId = getClientIdentifier(req);
+      recordUsage(clientId, "run");
+
+      // Save to history if logged in
+      if (req.user) {
+        await addHistory({
+          userId: req.user.id,
+          type: "run",
+          language: language || "unknown",
+          code,
+          result:
+            result.stdout ||
+            result.stderr ||
+            result.compile_output ||
+            "Executed",
+        });
+        await incrementRun(req.user.id);
+      }
+
+      res.json(result);
+    } catch (error) {
+      next(error);
     }
-
-    res.json(result);
-  } catch (error) {
-    console.error("[Run Route Error]", error.message);
-    res.status(500).json({ error: "Execution failed" });
   }
-});
+);
 
-// 2.5 History route
-app.get("/api/history", verifyToken, (req, res) => {
+// 3. Batch concurrent test cases runner
+app.post(
+  "/api/run-tests",
+  runLimiter,
+  optionalAuth,
+  enforceQuota("run"),
+  validateTestCases,
+  async (req, res, next) => {
+    try {
+      const { code, language, languageId, testCases, concurrency } = req.body;
+      const resolvedLangId = languageId || (language ? LANGUAGE_MAP[language] : null);
+
+      const report = await executeTestCasesConcurrently(
+        code,
+        resolvedLangId,
+        testCases,
+        concurrency || 3
+      );
+
+      // Record quota usage
+      const clientId = getClientIdentifier(req);
+      recordUsage(clientId, "run");
+
+      res.json(report);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// 4. Generate AI regression test cases based on findings
+app.post(
+  "/api/generate-tests",
+  aiLimiter,
+  optionalAuth,
+  async (req, res, next) => {
+    try {
+      const { code, language, findings } = req.body;
+      if (!code || !language) {
+        return res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "code and language are required to generate regression tests.",
+          },
+        });
+      }
+
+      const tests = await generateFocusedRegressionTests(code, language, findings || []);
+      res.json({ tests });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// 5. Verify fixes engine endpoint
+app.post(
+  "/api/verify",
+  runLimiter,
+  optionalAuth,
+  async (req, res, next) => {
+    try {
+      const {
+        originalCode,
+        patchedCode,
+        language,
+        findings,
+        acceptedFixes,
+        approvedTests,
+        originalScore,
+      } = req.body;
+
+      if (!patchedCode || !language) {
+        return res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "patchedCode and language are required for verification.",
+          },
+        });
+      }
+
+      const report = await verifyPatches({
+        originalCode: originalCode || patchedCode,
+        patchedCode,
+        language,
+        findings: findings || [],
+        acceptedFixes: acceptedFixes || [],
+        approvedTests: approvedTests || [],
+        originalScore: originalScore || 70,
+      });
+
+      // Save to history if logged in
+      if (req.user) {
+        await addHistory({
+          userId: req.user.id,
+          type: "verify",
+          language,
+          code: patchedCode,
+          result: report,
+        });
+      }
+
+      res.json({ verification: report });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// 6. User History route
+app.get("/api/history", verifyToken, async (req, res, next) => {
   try {
-    const history = getHistoryByUserId(req.user.id);
+    const history = await getHistoryByUserId(req.user.id);
     res.json({ history });
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch history" });
+    next(error);
   }
 });
 
-// 3. Chat route
-app.post("/api/chat", async (req, res) => {
-  try {
-    const { question, code, language, model: preferredModel } = req.body;
-
-    if (!process.env.OPENROUTER_API_KEY) {
-      return res.status(500).json({ error: "OpenRouter API Key is missing on the server." });
+// 7. AI Chat assistant
+app.post(
+  "/api/chat",
+  aiLimiter,
+  validateChat,
+  async (req, res, next) => {
+    try {
+      const { question, code, language, model } = req.body;
+      const reply = await chatWithAI(question, code, language, model);
+      res.json({ reply });
+    } catch (error) {
+      next(error);
     }
-
-    const CHAT_MODELS = [
-      "google/gemini-2.0-flash-lite-preview-02-05:free",
-      "google/gemini-2.0-pro-exp-02-05:free",
-      "meta-llama/llama-3.3-70b-instruct",
-      "google/gemma-3-27b-it",
-      "qwen/qwen-2.5-coder-32b-instruct"
-    ];
-
-    let lastError = null;
-
-    const chatModelsToTry = [...CHAT_MODELS];
-    if (preferredModel && preferredModel !== "auto") {
-      const index = chatModelsToTry.indexOf(preferredModel);
-      if (index > -1) {
-        chatModelsToTry.splice(index, 1);
-      }
-      chatModelsToTry.unshift(preferredModel);
-    }
-
-    for (const model of chatModelsToTry) {
-      try {
-        console.log(`[Chat] Trying model: ${model}`);
-
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:3000",
-            "X-Title": "Code Review AI Project",
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 4096,
-            messages: [
-              {
-                role: "system",
-                content: "You are an elite coding assistant. Provide the most detailed, thorough, and exhaustive answers possible. Explain all concepts, trade-offs, alternative approaches, and edge cases in depth. Provide full code examples, step-by-step breakdowns, and deep technical context. Use markdown formatting.",
-              },
-              {
-                role: "user",
-                content: `The user is working with this ${language} code:\n\n\`\`\`${language}\n${code}\n\`\`\`\n\nQuestion: ${question}`,
-              },
-            ],
-          }),
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-          console.warn(`[Chat] Model ${model} failed:`, data.error.message);
-          lastError = data.error.message;
-          continue;
-        }
-
-        const reply = data.choices?.[0]?.message?.content;
-        if (reply) {
-          console.log(`✅ Chat reply from: ${model}`);
-          res.json({ reply });
-          return;
-        }
-      } catch (err) {
-        console.warn(`[Chat] Model ${model} threw:`, err.message);
-        lastError = err.message;
-      }
-    }
-
-    res.status(500).json({ error: `All models failed. Last error: ${lastError}` });
-  } catch (error) {
-    console.error("[Chat Route Error]", error.message);
-    res.status(500).json({ error: "Chat failed" });
   }
-});
+);
 
-if (process.env.NODE_ENV !== "production") {
+// 404 and Error handling middleware
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// Start standalone server when executed directly (or non-production)
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  const PORT = config.port;
   app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Verified CodeReview Backend running on http://localhost:${PORT}`);
   });
 }
 

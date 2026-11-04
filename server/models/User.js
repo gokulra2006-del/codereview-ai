@@ -1,72 +1,107 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import mongoose from "mongoose";
 import { randomUUID } from "crypto";
+import { isMongoConnected } from "../db.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const UserSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  password: { type: String, required: true },
+  plan: { type: String, enum: ["free", "pro", "enterprise"], default: "free" },
+  createdAt: { type: Date, default: Date.now },
+  reviewCount: { type: Number, default: 0 },
+  runCount: { type: Number, default: 0 },
+});
 
-const DATA_DIR = process.env.NODE_ENV === "production" || process.env.VERCEL ? "/tmp/data" : join(__dirname, "..", "data");
-const USERS_FILE = join(DATA_DIR, "users.json");
+export const UserModel = mongoose.models.User || mongoose.model("User", UserSchema);
 
-// Ensure data directory and file exist
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-if (!existsSync(USERS_FILE)) writeFileSync(USERS_FILE, JSON.stringify([], null, 2));
+// In-memory fallback repository for local development when MongoDB is not running
+const fallbackUsers = new Map();
 
-const readUsers = () => {
-  try {
-    return JSON.parse(readFileSync(USERS_FILE, "utf-8"));
-  } catch {
-    return [];
+export async function findByEmail(email) {
+  const normalizedEmail = email.toLowerCase().trim();
+  if (isMongoConnected()) {
+    const user = await UserModel.findOne({ email: normalizedEmail }).lean();
+    if (!user) return null;
+    return { ...user, id: user._id.toString() };
   }
-};
+  const user = fallbackUsers.get(normalizedEmail);
+  return user ? { ...user } : null;
+}
 
-const writeUsers = (users) => {
-  writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-};
+export async function findById(id) {
+  if (isMongoConnected()) {
+    try {
+      const user = await UserModel.findById(id).lean();
+      if (!user) return null;
+      return { ...user, id: user._id.toString() };
+    } catch {
+      return null;
+    }
+  }
+  for (const user of fallbackUsers.values()) {
+    if (user.id === id) return { ...user };
+  }
+  return null;
+}
 
-export const findByEmail = (email) => {
-  const users = readUsers();
-  return users.find((u) => u.email.toLowerCase() === email.toLowerCase()) || null;
-};
+export async function createUser({ name, email, hashedPassword, plan = "free" }) {
+  const normalizedEmail = email.toLowerCase().trim();
 
-export const findById = (id) => {
-  const users = readUsers();
-  return users.find((u) => u.id === id) || null;
-};
+  if (isMongoConnected()) {
+    const newUser = await UserModel.create({
+      name,
+      email: normalizedEmail,
+      password: hashedPassword,
+      plan,
+    });
+    return {
+      id: newUser._id.toString(),
+      name: newUser.name,
+      email: newUser.email,
+      plan: newUser.plan,
+      createdAt: newUser.createdAt,
+      reviewCount: newUser.reviewCount,
+      runCount: newUser.runCount,
+    };
+  }
 
-export const createUser = ({ name, email, hashedPassword }) => {
-  const users = readUsers();
-  const newUser = {
+  const user = {
     id: randomUUID(),
     name,
-    email: email.toLowerCase(),
+    email: normalizedEmail,
     password: hashedPassword,
+    plan,
     createdAt: new Date().toISOString(),
     reviewCount: 0,
     runCount: 0,
   };
-  users.push(newUser);
-  writeUsers(users);
-  // Return user without password
-  const { password, ...safeUser } = newUser;
+  fallbackUsers.set(normalizedEmail, user);
+  const { password: _pw, ...safeUser } = user;
   return safeUser;
-};
+}
 
-export const incrementReview = (id) => {
-  const users = readUsers();
-  const idx = users.findIndex((u) => u.id === id);
-  if (idx !== -1) {
-    users[idx].reviewCount = (users[idx].reviewCount || 0) + 1;
-    writeUsers(users);
+export async function incrementReview(id) {
+  if (isMongoConnected()) {
+    await UserModel.findByIdAndUpdate(id, { $inc: { reviewCount: 1 } });
+    return;
   }
-};
+  for (const user of fallbackUsers.values()) {
+    if (user.id === id) {
+      user.reviewCount = (user.reviewCount || 0) + 1;
+      break;
+    }
+  }
+}
 
-export const incrementRun = (id) => {
-  const users = readUsers();
-  const idx = users.findIndex((u) => u.id === id);
-  if (idx !== -1) {
-    users[idx].runCount = (users[idx].runCount || 0) + 1;
-    writeUsers(users);
+export async function incrementRun(id) {
+  if (isMongoConnected()) {
+    await UserModel.findByIdAndUpdate(id, { $inc: { runCount: 1 } });
+    return;
   }
-};
+  for (const user of fallbackUsers.values()) {
+    if (user.id === id) {
+      user.runCount = (user.runCount || 0) + 1;
+      break;
+    }
+  }
+}

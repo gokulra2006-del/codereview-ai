@@ -1,47 +1,60 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import mongoose from "mongoose";
 import { randomUUID } from "crypto";
+import { isMongoConnected } from "../db.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const HistorySchema = new mongoose.Schema({
+  userId: { type: String, required: true, index: true },
+  type: { type: String, enum: ["run", "review", "verify"], required: true },
+  language: { type: String, required: true },
+  code: { type: String, required: true },
+  result: { type: mongoose.Schema.Types.Mixed, required: true },
+  timestamp: { type: Date, default: Date.now },
+});
 
-const DATA_DIR = process.env.NODE_ENV === "production" || process.env.VERCEL ? "/tmp/data" : join(__dirname, "..", "data");
-const HISTORY_FILE = join(DATA_DIR, "history.json");
+export const HistoryModel = mongoose.models.History || mongoose.model("History", HistorySchema);
 
-// Ensure data directory and file exist
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-if (!existsSync(HISTORY_FILE)) writeFileSync(HISTORY_FILE, JSON.stringify([], null, 2));
+// In-memory fallback history entries
+const fallbackHistory = [];
 
-const readHistory = () => {
-  try {
-    return JSON.parse(readFileSync(HISTORY_FILE, "utf-8"));
-  } catch {
-    return [];
+export async function getHistoryByUserId(userId) {
+  if (isMongoConnected()) {
+    const list = await HistoryModel.find({ userId }).sort({ timestamp: -1 }).lean();
+    return list.map((item) => ({
+      ...item,
+      id: item._id.toString(),
+    }));
   }
-};
 
-const writeHistory = (history) => {
-  writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
-};
+  return fallbackHistory
+    .filter((h) => h.userId === userId)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
 
-export const getHistoryByUserId = (userId) => {
-  const history = readHistory();
-  return history.filter((h) => h.userId === userId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-};
+export async function addHistory({ userId, type, language, code, result }) {
+  if (isMongoConnected()) {
+    const entry = await HistoryModel.create({
+      userId,
+      type,
+      language,
+      code,
+      result,
+      timestamp: new Date(),
+    });
+    return {
+      ...entry.toObject(),
+      id: entry._id.toString(),
+    };
+  }
 
-export const addHistory = ({ userId, type, language, code, result }) => {
-  const history = readHistory();
   const newEntry = {
     id: randomUUID(),
     userId,
-    type, // 'run' or 'review'
+    type,
     language,
     code,
     result,
     timestamp: new Date().toISOString(),
   };
-  history.push(newEntry);
-  writeHistory(history);
+  fallbackHistory.push(newEntry);
   return newEntry;
-};
+}

@@ -1,36 +1,36 @@
 import jwt from "jsonwebtoken";
+import { config } from "../config.js";
+import { ApiError } from "./errors.js";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
-export const verifyToken = (req, res, next) => {
+export const verifyToken = (req, _res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "No token provided" });
+    return next(new ApiError(401, "UNAUTHORIZED", "Authentication required. Please log in."));
   }
 
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, config.jwtSecret);
     req.user = decoded;
     next();
-  } catch (err) {
-    return res.status(401).json({ error: "Invalid or expired token" });
+  } catch (_err) {
+    return next(new ApiError(401, "INVALID_TOKEN", "Session expired or invalid token. Please log in again."));
   }
 };
 
-export const optionalAuth = (req, res, next) => {
+export const optionalAuth = (req, _res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return next();
   }
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, config.jwtSecret);
     req.user = decoded;
-  } catch (err) {
-    // Ignore error for optional auth
+  } catch {
+    // Ignore invalid token for optional auth, treat as guest
   }
   next();
 };
